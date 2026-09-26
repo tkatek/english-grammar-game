@@ -1408,14 +1408,17 @@
     if (result.passed) {
       Sound.play("complete");
       const medal = result.stars >= 3 ? "medal-3" : result.stars === 2 ? "medal-2" : "medal-1";
+      body.appendChild(el(div, { class: results__celebrate }, [
+        el(img, { src: PRAIRIE_DOG_ASSETS.correct.celebrate, alt:  }),
+      ]));
       body.appendChild(el("div", { class: "results__medal" }, [
         el("img", { src: REWARDS + medal + ".png", alt: result.stars + " star medal" }),
       ]));
       body.appendChild(el("h2", { class: "results__title", text: "Challenge Complete!" }));
       body.appendChild(starsRow(result.stars, result.maxStars || 3, true));
     } else {
-      body.appendChild(el("div", { class: "results__mascot" }, [
-        el("img", { src: MASCOTS + "fox.png", alt: "" }),
+      body.appendChild(el('div', { class: 'results__mascot' }, [
+        el('img', { src: PRAIRIE_DOG_ASSETS.wrong.crying, alt: '' }),
       ]));
       body.appendChild(el("h2", { class: "results__title", text: "Almost there!" }));
     }
@@ -1974,12 +1977,11 @@
     // Warm the Adventure Map artwork this device class will actually show,
     // so the map never flashes the wrong background first.
     warmMapArt(mapTierFor(window.innerWidth, window.innerHeight));
-    [MASCOTS + "dragon.png", MASCOTS + "owl.png", MASCOTS + "fox.png", MASCOTS + "book.png",
-     ICONS + "heart-full.png", ICONS + "heart-empty.png",
-     ICONS + "star-full.png", ICONS + "timer.png"].forEach((src) => {
-      const img = new Image();
-      img.src = src;
-    });
+    Object.values(PRAIRIE_DOG_ASSETS.neutral)
+      .concat(Object.values(PRAIRIE_DOG_ASSETS.correct))
+      .concat(Object.values(PRAIRIE_DOG_ASSETS.wrong))
+      .concat([ICONS + 'heart-full.png', ICONS + 'heart-empty.png', ICONS + 'star-full.png', ICONS + 'timer.png'])
+      .forEach((src) => { const img = new Image(); img.src = src; });
   }
 
   /* -------------------------------- boot ------------------------------- */
