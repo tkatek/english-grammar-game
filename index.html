@@ -159,6 +159,10 @@
             <img src="assets/icons/star-full.png" alt="" width="16" height="16">
             <span id="hud-score">0</span>
           </div>
+          <div class="gamebar__streak" id="hud-streak" hidden aria-label="Answer streak">
+            <img src="assets/images/rewards/badge-xp.png" alt="" width="15" height="15">
+            <span id="hud-streak-count">×2</span>
+          </div>
         </div>
       </header>
 
@@ -180,10 +184,6 @@
           <span>Pause</span>
         </button>
 
-        <div class="streak-pop" id="streak-pop" hidden>
-          <img src="assets/images/rewards/badge-xp.png" alt="" width="26" height="26">
-          <span id="streak-pop-count">×2</span>
-        </div>
         <div class="score-popups" id="score-popups" aria-hidden="true"></div>
 
         <div class="binary" id="binary" hidden>
@@ -195,13 +195,13 @@
           </button>
         </div>
 
-        <div class="coach" id="feedback" hidden>
-          <img class="coach__icon" id="feedback-icon" src="assets/icons/star-full.png" alt="" width="26" height="26">
-          <div class="coach__body">
-            <strong class="coach__title" id="feedback-title">Correct!</strong>
-            <span class="coach__detail" id="feedback-detail"></span>
+        <div class="feedback-card" id="feedback" role="status" hidden>
+          <div class="feedback-card__head">
+            <img class="feedback-card__icon" id="feedback-icon" src="assets/icons/star-full.png" alt="" width="24" height="24">
+            <strong class="feedback-card__title" id="feedback-title">Correct!</strong>
           </div>
-          <button type="button" class="coach__next" id="feedback-continue">Next</button>
+          <div class="feedback-card__body" id="feedback-detail"></div>
+          <button type="button" class="feedback-card__next" id="feedback-continue">Next</button>
         </div>
       </div>
     </section>

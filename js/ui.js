@@ -14,55 +14,131 @@
 
   /* ----------------------------- constants ----------------------------- */
 
-  // Hole grid on the whack field (percent of the yard).
-  // Desktop coordinates map onto the six holes painted in the supplied
-  // gameplay artwork (detected from the image: top row ~49% height,
-  // bottom row ~67%); unused painted holes stay empty for breathing room.
-  // Mobile uses its own responsive grid (3 up top + 1 below) so targets
-  // never crowd a narrow screen.
+  // Painted-hole maps measured from the three supplied gameplay artworks.
+  // Coordinates are percent positions IN EACH IMAGE; mapHole() converts them
+  // to field percent under background-size:cover/center so targets sit on the
+  // painted holes at every field aspect ratio.
   const HOLE_LAYOUTS = {
-    desktop: [
-      { x: 28.4, y: 49.4, row: "top" }, { x: 49.7, y: 49.4, row: "top" }, { x: 71.1, y: 49.4, row: "top" },
-      { x: 32.0, y: 67.0, row: "bottom" }, { x: 53.8, y: 67.0, row: "bottom" }, { x: 75.7, y: 67.0, row: "bottom" },
-    ],
-    mobile: [
-      { x: 25, y: 50, row: "top" }, { x: 50, y: 50, row: "top" }, { x: 75, y: 50, row: "top" },
-      { x: 50, y: 80, row: "bottom" },
-    ],
+    desktop: {
+      aspect: 1672 / 941,
+      top: [{ x: 28.3, y: 49.8 }, { x: 49.7, y: 49.8 }, { x: 71.1, y: 49.8 }],
+      bottom: [{ x: 31.8, y: 67.3 }, { x: 53.9, y: 67.3 }, { x: 75.6, y: 67.3 }],
+    },
+    tablet: {
+      aspect: 1448 / 1086,
+      top: [{ x: 33.0, y: 47.6 }, { x: 66.4, y: 47.6 }],
+      bottom: [{ x: 22.4, y: 64.9 }, { x: 49.5, y: 64.9 }, { x: 76.8, y: 64.9 }],
+    },
+    mobile: {
+      aspect: 941 / 1672,
+      top: [{ x: 28.8, y: 50.9 }, { x: 70.9, y: 50.9 }],
+      bottom: [{ x: 26.9, y: 65.3 }, { x: 72.3, y: 65.3 }],
+    },
   };
-  const MOLE_CAST = ["owl", "fox", "dragon", "book"];
-  const YARD_MOBILE_BREAK = 620;
+  // Centralized Prairie Dog asset map — the ONLY gameplay target characters.
+  // Reactions reflect the LEARNER'S action result (engine answerCorrect/Wrong),
+  // never the grammar of the sentence itself.
+  const PD = "assets/images/prairie-dogs/";
+  const PRAIRIE_DOG_ASSETS = {
+    neutral: {
+      glasses: PD + "prairie-dog-neutral-glasses.png",
+      student: PD + "prairie-dog-neutral-student.png",
+      cool: PD + "prairie-dog-neutral-cool.png",
+    },
+    correct: {
+      thumbsUp: PD + "prairie-dog-correct-thumbs-up.png",
+      celebrate: PD + "prairie-dog-correct-celebrate.png",
+    },
+    wrong: {
+      surprised: PD + "prairie-dog-wrong-surprised.png",
+      anxious: PD + "prairie-dog-wrong-anxious.png",
+      crying: PD + "prairie-dog-wrong-crying.png",
+      dizzy: PD + "prairie-dog-wrong-dizzy.png",
+      smashed: PD + "prairie-dog-wrong-smashed.png",
+    },
+  };
+  const NEUTRAL_KEYS = Object.keys(PRAIRIE_DOG_ASSETS.neutral);
 
-  // The Adventure Map is built on the vertical fantasy artwork
-  // (assets/images/bg-map-journey.webp|jpg, 941x1672). The canvas always
-  // keeps the artwork's aspect, so the painting is never stretched; nodes,
-  // locks, stars and labels stay real DOM elements layered on top.
-  const MAP_ART_W = 941;
-  const MAP_ART_H = 1672;
-  const MAP_ART_ASPECT = MAP_ART_H / MAP_ART_W;
+  // The Adventure Map is fully responsive: every device class renders its
+  // OWN artwork and its OWN island coordinates. Backgrounds live in
+  // assets/images — map-desktop.webp|jpg (1672x941 landscape panorama),
+  // map-tablet.webp|jpg (1086x1448 portrait), bg-map-journey.webp|jpg
+  // (941x1672 vertical, phones) — attached by css/style.css through the
+  // .map-canvas--<tier> classes that applyMapTier() sets from the measured
+  // map viewport (works inside a platform container, not just the window).
+  //
+  // fit:"aspect" — the canvas keeps the artwork's aspect ratio (vertical
+  //   scrolling journey). fit:"cover" — the canvas fills the whole content
+  //   area below the header and node positions are transformed through the
+  //   real background-size:cover crop (mapCoverPos), so islands stay
+  //   aligned at every stage aspect ratio without stretching the painting.
+  //
+  // Anchor coordinates are percent positions IN EACH ARTWORK, calibrated
+  // against the painted islands, ordered start island -> castle island.
+  const MAP_LAYOUTS = {
+    desktop: {
+      artW: 1672,
+      artH: 941,
+      fit: "cover",
+      anchors: [
+        { x: 15.0, y: 72.5 },  // large foreground start island (big tree)
+        { x: 33.0, y: 63.5 },  // first bridge island
+        { x: 43.5, y: 52.5 },  // second bridge island (inner grass, clear of the falls)
+        { x: 53.5, y: 46.0 },  // waterfall island
+        { x: 63.5, y: 40.0 },  // mid-path island
+        { x: 72.5, y: 33.5 },  // ascending island
+        { x: 80.0, y: 27.0 },  // island below the castle bridge
+        { x: 85.5, y: 28.0 },  // castle island plateau — the destination
+      ],
+      castle: { x: 88.0, y: 12.5 }, // castle keep; trail stub fades out here
+    },
+    tablet: {
+      artW: 1086,
+      artH: 1448,
+      fit: "aspect",
+      anchors: [
+        { x: 18.0, y: 78.0 },  // foreground start island (big tree, fence)
+        { x: 65.5, y: 58.5 },  // waterfall island (right side, clear of the falls' mist)
+        { x: 48.0, y: 36.0 },  // central hub island (cherry blossom, clear of the cliff)
+        { x: 74.0, y: 24.0 },  // castle island plateau, below the castle keep
+      ],
+      castle: { x: 78.0, y: 12.5 },
+    },
+    mobile: {
+      artW: 941,
+      artH: 1672,
+      fit: "aspect",
+      anchors: [
+        { x: 21, y: 86.5 },   // foreground island (hero / current level)
+        { x: 39, y: 72.5 },   // wide earthen island
+        { x: 19, y: 59 },     // island with the waterfall
+        { x: 28, y: 50 },     // small green island
+        { x: 46, y: 39.5 },   // stone-and-green island
+        { x: 66, y: 28.5 },   // castle island — the destination
+      ],
+      castle: { x: 66, y: 24 },
+    },
+  };
 
-  // Island landing spots in the artwork, bottom -> top, as % of the canvas —
-  // calibrated against the painting's actual terrain (sampled pixel bands):
-  // the lush left foreground island, the wide earthen island, the waterfall
-  // island, a small green ledge, the stone-and-green island, and the castle.
-  // Index 0 is the hero / current level; the trail's stub ends at the castle.
-  const MAP_ANCHORS = [
-    { x: 21, y: 86.5 },   // foreground island (hero / current level)
-    { x: 39, y: 72.5 },   // wide earthen island
-    { x: 19, y: 59 },     // island with the waterfall
-    { x: 28, y: 50 },     // small green island
-    { x: 46, y: 39.5 },   // stone-and-green island
-    { x: 66, y: 28.5 },   // castle island — the destination
-  ];
-  const MAP_CASTLE = { x: 66, y: 24 }; // where the trail stub fades out
-
-  // When more levels load than the artwork has islands, the canvas grows and
-  // nodes continue on evenly spaced rows through the middle band.
+  // Mobile overflow (original working phone layout): when more levels load
+  // than the artwork has islands, the canvas grows and nodes continue on
+  // evenly spaced rows through the middle band.
   const MAP_OVERFLOW_LANES = [50, 40, 60, 38, 62, 42, 58, 36, 64, 44, 56, 46, 54];
   const MAP_OVERFLOW_ROW = 150;
   const MAP_OVERFLOW_TOP = 170;
   const MAP_OVERFLOW_BOTTOM = 118;
   const MAP_SOON_MAX = 3; // locked "on the way" islands above loaded levels
+
+  const MAP_TIERS = ["desktop", "tablet", "mobile"];
+  // Below this stage width/height ratio the desktop cover crop would eat the
+  // edge islands (start bottom-left, castle top-right), so the stage caps
+  // its height and centers vertically instead.
+  const MAP_DESKTOP_MIN_RATIO = 1.4;
+  const MAP_ART_URLS = {
+    desktop: { webp: "assets/images/map-desktop.webp", jpg: "assets/images/map-desktop.jpg" },
+    tablet: { webp: "assets/images/map-tablet.webp", jpg: "assets/images/map-tablet.jpg" },
+    mobile: { webp: "assets/images/bg-map-journey.webp", jpg: "assets/images/bg-map-journey.jpg" },
+  };
 
   const SVG_NS = "http://www.w3.org/2000/svg";
   function svgEl(tag, attrs) {
@@ -130,24 +206,28 @@
     return row;
   };
 
+  // Returns heart <img> elements to append DIRECTLY into #hud-hearts —
+  // no wrapper div, so .gamebar__hearts styles apply and nothing nests.
   const heartsRow = (lives, max) => {
-    const row = el("div", { class: "hud__hearts" });
+    const frag = document.createDocumentFragment();
     for (let i = 1; i <= max; i++) {
       const full = i <= lives;
-      row.appendChild(el("img", {
+      frag.appendChild(el("img", {
         src: ICONS + (full ? "heart-full" : "heart-empty") + ".png",
         alt: full ? "Life remaining" : "Life lost",
         class: full ? "heart--full" : "heart--empty",
       }));
     }
-    if (lives === 1) row.classList.add("is-low");
-    return row;
+    return frag;
   };
 
   /* ------------------------------ UI state ----------------------------- */
 
   const ctx = {
     screen: "loading",
+    moleIndex: 0,
+    lastWaveSig: null,
+    activeMoles: [],
     levelId: null,
     challengeId: null,
     challenge: null,        // challengeStarted payload
@@ -161,7 +241,9 @@
     modalStack: [],
     layoutMobile: false,
     resizeTimer: null,
-    mapRenderWidth: 0,        // last width the map was laid out for
+    mapTier: null,            // active map device class (desktop|tablet|mobile)
+    mapRenderWidth: 0,        // last map-viewport size the map was laid out for
+    mapRenderHeight: 0,
     seenJourneyKeys: new Set(), // level ids already shown unlocked (pop anim)
   };
 
@@ -314,22 +396,110 @@
   function renderMap() {
     const overall = engine.getOverallProgress();
     $("#map-stars span").textContent = String(overall.totalStars);
-    ctx.mapRenderWidth = window.innerWidth;
     const canvas = $("#map-canvas");
     clearNode(canvas);
-    canvas.classList.remove("map-canvas--journey");
+    // Reset the explicit canvas height so the new tier's CSS and artwork
+    // aspect are measured from a clean state.
     canvas.style.height = "";
-    canvas.style.width = "";
     renderJourneyMap(canvas);
   }
 
-  /* ----- The vertical journey over the fantasy artwork ------------------
-   * One layout for every screen size: a tall climb from the foreground
-   * island (bottom) to the castle (top). Level 1 / the current level owns
-   * the big foreground island; future levels alternate up the artwork's
-   * island column. All values come from the engine (levels, progress,
-   * unlocks) — nothing about progression is baked into the artwork.
+  /* ----- The responsive journey map --------------------------------------
+   * Every device class gets its own composition: the desktop panorama
+   * (wide climb across floating islands, bottom-left start -> upper-right
+   * castle, canvas fills the content area via background-size:cover with
+   * node positions transformed through the real crop), the tablet painting
+   * (its own zigzag of islands, canvas keeps the artwork aspect), and the
+   * original phone climb (unchanged). Levels, progress, unlocks and stars
+   * all come from the engine — nothing about progression is baked in.
    * -------------------------------------------------------------------- */
+
+  // Device class from the MEASURED map viewport (clientWidth/Height include
+  // the tier padding, so the result cannot oscillate when padding changes).
+  // Breakpoints match the gameplay field tiers: phone <= 600, tablet
+  // 601-1024 (portrait), everything wider — including landscape tablets —
+  // rides the desktop panorama.
+  function mapTierFor(w, h) {
+    if (w <= 0 || h <= 0) return ctx.mapTier || "mobile";
+    if (w <= 600) return "mobile";
+    if (w <= 1024) return h > w ? "tablet" : "desktop";
+    return "desktop";
+  }
+
+  // Artwork-space percent -> canvas-space percent for a
+  // background-size:cover / center artwork of aspect a (same math as
+  // mapHole, generalized so nodes stay glued to their islands at ANY
+  // stage aspect ratio).
+  function mapCoverPos(pos, a, w, h) {
+    const s = Math.max(w / a, h); // image drawn at width a*s, height s
+    const ox = (a * s - w) / 2;
+    const oy = (s - h) / 2;
+    return {
+      x: ((pos.x / 100) * a * s - ox) / w * 100,
+      y: ((pos.y / 100) * s - oy) / h * 100,
+    };
+  }
+
+  const warmedArt = new Set();
+  function warmMapArt(tier) {
+    const urls = MAP_ART_URLS[tier];
+    if (!urls) return;
+    for (const src of [urls.webp, urls.jpg]) {
+      if (warmedArt.has(src)) continue;
+      warmedArt.add(src);
+      const img = new Image();
+      img.decoding = "async";
+      img.src = src;
+    }
+  }
+
+  // Applies the tier to the section (header/frame/node sizing) and canvas
+  // (background artwork), and preloads that artwork so it never flashes in.
+  function applyMapTier(tier) {
+    const screenEl = $("#screen-map");
+    const canvas = $("#map-canvas");
+    MAP_TIERS.forEach((t) => {
+      screenEl.classList.toggle("map-tier-" + t, t === tier);
+      canvas.classList.toggle("map-canvas--" + t, t === tier);
+    });
+    ctx.mapTier = tier;
+    warmMapArt(tier);
+  }
+
+  // Evenly spread n stops over a list of landing spots, so e.g. 4 nodes on
+  // the desktop artwork span start island -> castle island instead of
+  // bunching into the bottom-left corner.
+  function spreadStops(list, n) {
+    if (n <= 1) return [list[0]];
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      out.push(list[Math.round(i * (list.length - 1) / (n - 1))]);
+    }
+    return out;
+  }
+
+  // Landing spots for the desktop/tablet journeys: painted islands first;
+  // once the game ships more levels than there are islands, the painted
+  // bridge midpoints join the route (still on the artwork's path), and only
+  // beyond that do extra wraps lift into the sky band above the route.
+  function mapPositions(layout, n) {
+    const A = layout.anchors;
+    if (n <= A.length) return spreadStops(A, n);
+    const half = [];
+    for (let i = 0; i < A.length - 1; i++) {
+      half.push(A[i], { x: (A[i].x + A[i + 1].x) / 2, y: (A[i].y + A[i + 1].y) / 2 });
+    }
+    half.push(A[A.length - 1]);
+    if (n <= half.length) return spreadStops(half, n);
+    const out = half.slice();
+    let wrap = 1;
+    while (out.length < n) {
+      const base = half[out.length % half.length];
+      out.push({ x: base.x, y: Math.max(10, base.y - wrap * 6) });
+      if (out.length % half.length === 0) wrap++;
+    }
+    return out;
+  }
 
   function renderJourneyMap(canvas) {
     const levels = engine.getLevels();
@@ -356,37 +526,70 @@
         : 0;
     });
 
-    // Show the screen first so the canvas has a real width to measure, then
+    // Show the screen first so the viewport has a real size to measure, then
     // lay out synchronously (reading clientWidth forces layout — no rAF hop,
     // which would stall in background tabs and leave the map hidden).
     showScreen("map");
 
-    const width = canvas.clientWidth || 360;
-    const artHeight = Math.round(width * MAP_ART_ASPECT);
+    // Tier classes carry each device class's own background and frame CSS;
+    // they must be active before the canvas is measured.
+    const viewport = canvas.parentElement;
+    const tier = mapTierFor(viewport.clientWidth, viewport.clientHeight);
+    applyMapTier(tier);
+    const layout = MAP_LAYOUTS[tier];
+    canvas.classList.add("map-canvas--journey", "is-positioning");
 
+    const width = canvas.clientWidth || 360;
     let height;
-    if (entries.length <= MAP_ANCHORS.length) {
-      // Nodes sit on the artwork's islands; the canvas IS the artwork.
-      height = artHeight;
-      entries.forEach((entry) => {
-        const a = MAP_ANCHORS[entry.i];
-        entry.laneX = a.x / 100;
-        entry.y = (a.y / 100) * height;
-      });
+    let toCanvas; // artwork-space % -> canvas-space %
+
+    if (layout.fit === "cover") {
+      // Desktop panorama: the canvas fills the whole content area below the
+      // header; the artwork covers it and node positions ride the crop.
+      // On tall windows (big monitors, wide-app cap) the raw area can be much
+      // taller than the artwork's aspect — unbounded cover would then crop
+      // away the start/castle islands. Cap the stage ratio so at most ~11%
+      // is trimmed per side; the canvas centers vertically in the remainder.
+      const cs = getComputedStyle(viewport);
+      const availH = viewport.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      height = Math.max(320, Math.min(Math.floor(availH), Math.round(width / MAP_DESKTOP_MIN_RATIO)));
+      const artAspect = layout.artW / layout.artH;
+      toCanvas = (p) => mapCoverPos(p, artAspect, width, height);
     } else {
-      // More levels than islands: extend the climb beyond the artwork's
-      // natural bands (background-size: cover crops in from the sides).
-      height = Math.max(
-        artHeight,
-        MAP_OVERFLOW_TOP + MAP_OVERFLOW_BOTTOM + (entries.length - 1) * MAP_OVERFLOW_ROW
-      );
-      entries.forEach((entry) => {
-        entry.laneX = MAP_OVERFLOW_LANES[entry.i % MAP_OVERFLOW_LANES.length] / 100;
-        entry.y = height - MAP_OVERFLOW_BOTTOM - entry.i * MAP_OVERFLOW_ROW;
-      });
+      // Vertical journey: the canvas IS the artwork (no crop, no stretch).
+      height = Math.round(width * layout.artH / layout.artW);
+      toCanvas = (p) => ({ x: p.x, y: p.y });
     }
 
-    canvas.classList.add("map-canvas--journey", "is-positioning");
+    ctx.mapTier = tier;
+    ctx.mapRenderWidth = viewport.clientWidth;
+    ctx.mapRenderHeight = viewport.clientHeight;
+
+    // Landing spots for this tier (artwork-space %).
+    let stops;
+    if (tier === "mobile") {
+      if (entries.length <= layout.anchors.length) {
+        stops = entries.map((entry) => layout.anchors[entry.i] || layout.anchors[layout.anchors.length - 1]);
+      } else {
+        // More levels than islands: extend the climb beyond the artwork's
+        // natural bands (background-size: cover crops in from the sides).
+        height = Math.max(
+          height,
+          MAP_OVERFLOW_TOP + MAP_OVERFLOW_BOTTOM + (entries.length - 1) * MAP_OVERFLOW_ROW
+        );
+        stops = entries.map((entry) => ({
+          x: MAP_OVERFLOW_LANES[entry.i % MAP_OVERFLOW_LANES.length],
+          y: (height - MAP_OVERFLOW_BOTTOM - entry.i * MAP_OVERFLOW_ROW) / height * 100,
+        }));
+      }
+    } else {
+      stops = mapPositions(layout, entries.length);
+    }
+
+    entries.forEach((entry, i) => {
+      entry.pos = toCanvas(stops[i]);
+    });
+
     canvas.style.height = height + "px";
 
     entries.forEach((entry) => {
@@ -399,21 +602,25 @@
       }
     });
 
-    drawJourneyPath(canvas, entries, height);
+    drawJourneyPath(canvas, entries, width, height, layout, toCanvas);
     canvas.classList.remove("is-positioning");
 
-    // Where to park the view: the learner's current island (or the top of
-    // their climb when everything is done), kept in the lower-middle.
+    // Where to park the view on scrolling tiers: the learner's current
+    // island (or the top of their climb when everything is done), kept in
+    // the lower-middle. The desktop panorama never scrolls.
+    if (layout.fit === "cover") {
+      viewport.scrollTop = 0;
+      return;
+    }
     let focusY = null;
     const current = entries.find((e) => e.kind === "level" && e.isCurrent);
-    if (current) focusY = current.y;
+    if (current) focusY = current.pos.y / 100 * height;
     else {
       const lastLevel = [...entries].reverse().find((e) => e.kind === "level");
-      if (lastLevel) focusY = lastLevel.y;
-      else if (entries.length) focusY = entries[entries.length - 1].y;
+      if (lastLevel) focusY = lastLevel.pos.y / 100 * height;
+      else if (entries.length) focusY = entries[entries.length - 1].pos.y / 100 * height;
     }
-    const viewport = canvas.parentElement;
-    if (focusY != null && viewport) {
+    if (focusY != null) {
       const vh = viewport.clientHeight;
       viewport.scrollTop = Math.max(0, Math.min(focusY - vh * 0.62, viewport.scrollHeight - vh));
     }
@@ -453,9 +660,11 @@
     if (level && entry.progress.completed) kids.push(starsRow(entry.rating, 3, false, "map-jnode__stars"));
     if (label) kids.push(el("span", { class: "map-jnode__label", text: label }));
 
+    // Percentage positions relative to the map stage, so nodes stay glued to
+    // their islands whenever the stage (or the artwork) scales.
     return el("button", {
       class: "map-jnode " + state + (newly ? " map-jnode--newly" : ""),
-      style: "left:" + Math.round(entry.laneX * 100) + "%; top:" + entry.y + "px",
+      style: "left:" + (Math.round(entry.pos.x * 100) / 100) + "%; top:" + (Math.round(entry.pos.y * 100) / 100) + "%",
       "aria-label": aria,
       onclick: () => {
         if (!level) return; // "coming soon" islands are quiet placeholders
@@ -467,36 +676,71 @@
   }
 
   // Dotted, softly glowing trail linking the islands (nodes render on top of
-  // the SVG, so the dots visually end at each disc edge). A short stub fades
-  // out towards the castle at the top of the artwork.
-  function drawJourneyPath(canvas, entries, height) {
-    const W = canvas.clientWidth || 360;
+  // the SVG, so the dots visually end at each disc edge). The curve is built
+  // from the ACTIVE layout's node centers — vertical S-curves on the phone
+  // climb, wide diagonal arcs across the desktop panorama — and a short stub
+  // fades out towards this tier's castle. Stroke geometry scales with the
+  // canvas width so the trail reads the same on a phone and a 1440p monitor.
+  function drawJourneyPath(canvas, entries, width, height, layout, toCanvas) {
     const f = (n) => Math.round(n * 10) / 10;
-    const pts = entries.map((e) => ({ x: e.laneX * W, y: e.y }));
+    const pts = entries.map((e) => ({ x: e.pos.x / 100 * width, y: e.pos.y / 100 * height }));
     const last = pts[pts.length - 1];
+    const scale = Math.max(1, Math.min(3.1, width / 420));
 
     const svg = svgEl("svg", {
       class: "map-path",
-      viewBox: "0 0 " + Math.round(W) + " " + height,
+      viewBox: "0 0 " + Math.round(width) + " " + Math.round(height),
       preserveAspectRatio: "none",
       "aria-hidden": "true",
     });
-    svg.appendChild(svgEl("path", {
-      class: "map-path__stub",
-      d: "M" + f(last.x) + " " + f(last.y - 46)
-        + " Q " + f(last.x) + " " + f((last.y + MAP_CASTLE.y * height / 100) / 2)
-        + " " + f(MAP_CASTLE.x / 100 * W) + " " + f(MAP_CASTLE.y / 100 * height),
-    }));
+
+    if (last) {
+      const c = toCanvas(layout.castle);
+      const cx = c.x / 100 * width;
+      const cy = c.y / 100 * height;
+      const dx = cx - last.x;
+      const dy = cy - last.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const gap = 46 * scale; // start just clear of the last node's disc
+      const sx = last.x + dx / len * gap;
+      const sy = last.y + dy / len * gap;
+      const qx = (sx + cx) / 2 - dy / len * len * 0.18;
+      const qy = (sy + cy) / 2 + dx / len * len * 0.18;
+      svg.appendChild(svgEl("path", {
+        class: "map-path__stub",
+        d: "M" + f(sx) + " " + f(sy) + " Q " + f(qx) + " " + f(qy) + " " + f(cx) + " " + f(cy),
+        "stroke-width": f(4 * scale),
+        "stroke-dasharray": "0.1 " + f(12 * scale),
+      }));
+    }
     if (pts.length > 1) {
       let d = "M" + f(pts[0].x) + " " + f(pts[0].y);
       for (let i = 1; i < pts.length; i++) {
         const a = pts[i - 1];
         const b = pts[i];
-        const k = (a.y - b.y) * 0.55; // curve scaled to the actual island gap
-        d += " C " + f(a.x) + " " + f(a.y - k) + ", " + f(b.x) + " " + f(b.y + k) + ", " + f(b.x) + " " + f(b.y);
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len = Math.hypot(dx, dy) || 1;
+        // control points run along the travel direction — pure vertical
+        // segments (the phone climb) render exactly like the original path
+        const k = len * 0.55;
+        const c1x = a.x + dx / len * k;
+        const c1y = a.y + dy / len * k;
+        const c2x = b.x - dx / len * k;
+        const c2y = b.y - dy / len * k;
+        d += " C " + f(c1x) + " " + f(c1y) + ", " + f(c2x) + " " + f(c2y) + ", " + f(b.x) + " " + f(b.y);
       }
-      svg.appendChild(svgEl("path", { class: "map-path__glow", d }));
-      svg.appendChild(svgEl("path", { class: "map-path__dash", d }));
+      svg.appendChild(svgEl("path", {
+        class: "map-path__glow",
+        d,
+        "stroke-width": f(12 * scale),
+      }));
+      svg.appendChild(svgEl("path", {
+        class: "map-path__dash",
+        d,
+        "stroke-width": f(5 * scale),
+        "stroke-dasharray": "0.1 " + f(13.5 * scale),
+      }));
     }
     canvas.insertBefore(svg, canvas.firstChild);
   }
@@ -617,9 +861,31 @@
 
   /* ============================== GAMEPLAY ============================= */
 
+  // Device class follows the SAME thresholds as the CSS background swaps
+  // (mobile <= 600, tablet <= 1024, desktop > 1024) so the hole map always
+  // matches the artwork actually displayed.
   function yardTier() {
-    const yard = $("#yard");
-    return yard && yard.clientWidth > 0 && yard.clientWidth < YARD_MOBILE_BREAK ? "mobile" : "desktop";
+    const w = window.innerWidth;
+    if (w <= 600) return 'mobile';
+    // Portrait tablets: the 4:3 tablet artwork cover-crops so hard its outer
+    // holes fall off-frame — tall fields use the portrait artwork instead.
+    const yard = document.querySelector('#whack');
+    if (yard && yard.clientHeight > 0 && yard.clientWidth / yard.clientHeight < 0.9) return 'mobile';
+    return w <= 1024 ? 'tablet' : 'desktop';
+  }
+
+  // Convert an in-image percent position to field percent for a
+  // background-size:cover / center artwork of the given aspect.
+  function mapHole(pos, tier, fieldW, fieldH) {
+    const layout = HOLE_LAYOUTS[tier];
+    const a = layout.aspect;
+    const s = Math.max(fieldW / a, fieldH); // image drawn at width a*s, height s
+    const ox = (a * s - fieldW) / 2;
+    const oy = (s - fieldH) / 2;
+    return {
+      x: ((pos.x / 100) * a * s - ox) / fieldW * 100,
+      y: ((pos.y / 100) * s - oy) / fieldH * 100,
+    };
   }
 
   function shuffleList(list) {
@@ -631,13 +897,10 @@
     return arr;
   }
 
-  function nextMascot() {
-    ctx.moleIndex = ((ctx.moleIndex || 0) + 1) % MOLE_CAST.length;
-    return MOLE_CAST[ctx.moleIndex];
-  }
 
   function setupGameScreen(payload) {
     ctx.challenge = payload;
+    ctx.lastWaveSig = null;
     ctx.marked = null;
     ctx.pendingResult = null;
     ctx.question = null;
@@ -657,7 +920,7 @@
 
     $("#hud-score").textContent = "0";
     setProgress(0, payload.totalQuestions, 1);
-    $("#streak-pop").hidden = true;
+    $("#hud-streak").hidden = true;
 
     const whack = $("#whack");
     whack.classList.toggle("whack--speed", payload.challengeType === "speed_round");
@@ -683,10 +946,19 @@
     else if (remaining <= total * 0.2) box.classList.add("hud__timer--warn");
   }
 
+  function syncFieldArtwork() {
+    const yard = document.querySelector("#whack");
+    if (!yard) return;
+    const tall = yard.clientWidth > 0 && yard.clientWidth / yard.clientHeight < 0.9;
+    yard.classList.toggle("whack--tall", tall);
+  }
+
   function renderQuestion(payload) {
     ctx.question = payload.question;
     ctx.questionLocked = false;
     ctx.marked = null;
+    ctx.lastHitEl = null;
+    ctx.activeMoles = [];
     ctx.tapMeansCorrect = true;
 
     const yard = $("#yard");
@@ -696,39 +968,38 @@
     clearNode(yard);
     hideFeedback();
     binary.hidden = true;
+    syncFieldArtwork();
 
     const setText = (sel, value) => { $(sel).textContent = value; };
     const setShown = (sel, shown) => { $(sel).hidden = !shown; };
 
     if (q.type === "correct_incorrect") {
-      // One mascot pops up with the sentence; tap it or use the paddles.
+      // Whack-a-mole WAVE: the engine's sentence + decoys from the same
+      // level pop out of different holes at once. Hitting a sentence claims
+      // it matches the instruction; the engine stays the only validator.
       ctx.tapMeansCorrect = !/mistake|wrong/i.test(q.prompt || "");
       setText("#instruction-text", q.prompt || "Is this sentence correct?");
       setText("#instruction-hint", ctx.tapMeansCorrect
-        ? "Whack the mole if the sentence is correct"
-        : "Whack the mole if the sentence has a mistake");
+        ? "Whack the animal with the CORRECT sentence"
+        : "Whack the animal with the sentence that has a MISTAKE");
       setShown("#instruction-hint", true);
       setShown("#instruction-sentence", false);
 
-      // Single-sentence questions pop from one hole — front (bottom) row on
-      // desktop for depth, mirroring the reference's foreground animal.
-      const pool = tier === "mobile"
-        ? HOLE_LAYOUTS.mobile
-        : HOLE_LAYOUTS.desktop.filter((h) => h.row === "bottom")
-          .concat(HOLE_LAYOUTS.desktop.filter((h) => h.row === "top"));
-      let hole = pool[Math.floor(Math.random() * pool.length)];
-      if (ctx.lastHoleKey && hole.x === ctx.lastHoleKey.x && hole.y === ctx.lastHoleKey.y) {
-        hole = pool[(pool.indexOf(hole) + 1) % pool.length];
+      const wave = buildSentenceWave(q, tier);
+      if (wave) {
+        spawnWave(yard, tier, wave);
+      } else {
+        // Fallback (no decoy data): single mascot + Correct/Mistake paddles.
+        const layout = HOLE_LAYOUTS[tier];
+        const pool = layout.bottom.concat(layout.top);
+        let hole = pool[Math.floor(Math.random() * pool.length)];
+        if (ctx.lastHoleKey && hole.x === ctx.lastHoleKey.x && hole.y === ctx.lastHoleKey.y) {
+          hole = pool[(pool.indexOf(hole) + 1) % pool.length];
+        }
+        ctx.lastHoleKey = hole;
+        spawnWave(yard, tier, [{ text: q.text || "", claim: ctx.tapMeansCorrect }], true);
+        binary.hidden = false;
       }
-      ctx.lastHoleKey = hole;
-      yard.appendChild(makeHole(hole));
-      yard.appendChild(makeMole(hole, {
-        bubble: q.text || "",
-        mascot: nextMascot(),
-        label: q.text || "The sentence",
-        onTap: () => submit(ctx.tapMeansCorrect),
-      }));
-      binary.hidden = false;
     } else if (q.type === "missing_word") {
       setText("#instruction-text", "Tap the animal holding the missing word");
       setShown("#instruction-hint", false);
@@ -753,48 +1024,208 @@
     setProgress(payload.answeredCount, payload.totalQuestions, payload.questionNumber);
   }
 
-  // Several mascots pop out of top-row holes, one per option. On phones the
-  // whole mobile grid is drawn (extra hole stays empty) like the reference.
-  function spawnOptionMoles(yard, tier, q) {
-    const options = Array.isArray(q.options) ? q.options.slice(0, 3) : [];
-    if (tier === "mobile") {
-      HOLE_LAYOUTS.mobile.forEach((hole) => yard.appendChild(makeHole(hole)));
-      const top = HOLE_LAYOUTS.mobile.filter((h) => h.row === "top");
-      const holes = shuffleList(top).slice(0, Math.max(1, options.length));
-      options.forEach((option, i) => {
-        yard.appendChild(makeMole(holes[i], {
-          bubble: String(option),
-          mascot: MOLE_CAST[i % MOLE_CAST.length],
-          label: "Answer: " + option,
-          delay: i * 90,
-          onTap: () => submit(option),
-        }));
-      });
-      return;
+  /* ----- Sentence waves (UI-layer grouping; engine validates answers) -----
+   * Each correct_incorrect question becomes a wave of 1-4 sentences. Exactly
+   * one sentence satisfies the instruction. Hitting the engine's own
+   * sentence submits the instruction-polarity claim; hitting a decoy submits
+   * the opposite claim — so the engine's isCorrect check decides the result
+   * exactly as it would for a single-target question. Decoy texts come from
+   * the level's sentence pool (fetched read-only from questions.json).
+   * -------------------------------------------------------------------- */
+
+  function buildSentenceWave(q, tier) {
+    const pool = ctx.sentencePool && ctx.sentencePool[String(ctx.levelId)];
+    if (!pool || !pool.length) return null;
+    const text = (q.text || '').trim();
+    const src = pool.find((p) => p.text === text);
+    if (!src) return null;
+
+    const C = ctx.tapMeansCorrect; // claim submitted when hitting the engine sentence
+    const others = shuffleList(pool.filter((p) => p.text !== src.text));
+    const decoys = [];
+    let srcSatisfies;
+    if (src.isCorrect === C) {
+      // The engine sentence satisfies the instruction: every decoy must NOT.
+      srcSatisfies = true;
+      for (const p of others) {
+        if (p.isCorrect !== C && decoys.length < 3) decoys.push(p);
+      }
+    } else {
+      // Exactly one decoy satisfies; the rest must not.
+      srcSatisfies = false;
+      let targetPlaced = false;
+      for (const p of others) {
+        if (!targetPlaced && p.isCorrect === C) { decoys.unshift(p); targetPlaced = true; }
+        else if (p.isCorrect !== C && decoys.length < 3) decoys.push(p);
+      }
+      if (!targetPlaced) return null;
     }
-    const pool = HOLE_LAYOUTS.desktop.filter((h) => h.row === "top");
-    const holes = shuffleList(pool).slice(0, Math.max(1, options.length));
-    options.forEach((option, i) => {
-      yard.appendChild(makeHole(holes[i]));
-      yard.appendChild(makeMole(holes[i], {
-        bubble: String(option),
-        mascot: MOLE_CAST[i % MOLE_CAST.length],
-        label: "Answer: " + option,
-        delay: i * 90,
-        onTap: () => submit(option),
-      }));
+
+    const wanted = waveTargetCount(tier, text, decoys.map((d) => d.text));
+    const group = [{ text: src.text, claim: C, satisfies: srcSatisfies }]
+      .concat(decoys.slice(0, Math.max(0, wanted - 1)).map((d) => ({ text: d.text, claim: !C, satisfies: d.isCorrect === C })));
+    return shuffleList(group);
+  }
+
+  function waveTargetCount(tier, longestOwn, decoyTexts) {
+    const longest = Math.max(longestOwn ? longestOwn.length : 0, ...decoyTexts.map((t) => t.length));
+    // Ultra-short fields (landscape phones) have no vertical room for two
+    // stacked targets between the instruction and feedback zones.
+    const field = document.querySelector('#whack');
+    if (field && field.clientHeight > 0 && field.clientHeight < 320) return 1;
+    if (tier === 'mobile') return longest > 36 ? 1 : 2;
+    if (tier === 'tablet') return longest > 40 ? 2 : (Math.random() < 0.5 ? 2 : 3);
+    const r = Math.random();
+    return r < 0.18 ? 2 : r < 0.85 ? 3 : 4;
+  }
+
+  // Pick holes whose estimated mascot + bubble boxes never collide and stay
+  // out of the instruction (top) and feedback (bottom) safe zones.
+  function pickWaveHoles(tier, count, fw, fh, texts) {
+    const layout = HOLE_LAYOUTS[tier];
+    const vw = window.innerWidth;
+    const short = fh < 420;
+    const fontPx = clampNum(15, 1.25 * vw / 100, 22);
+    const capW = short ? Math.min(320, 40 * vw / 100) : (tier === 'mobile' ? 38 * vw / 100 : Math.min(320, 27 * vw / 100));
+    // estimate each sentence's real rendered bubble width from its text
+    const estW = texts && texts.length
+      ? texts.map((t) => Math.max(92, Math.min(capW, String(t).length * fontPx * 0.52 + 26)))
+      : Array.from({ length: count }, () => capW);
+    const bubbleH = short ? 58 : (tier === 'mobile' ? 88 : 78);
+    const moleW = short
+      ? clampNum(64, 15 * fh / 100, 110)
+      : tier === 'mobile' ? clampNum(88, 27 * vw / 100, 122) : clampNum(105, 12.5 * vw / 100, 180);
+    // measure the REAL instruction card so bubbles never cross into it
+    let topLimit = short ? 58 : 92;
+    const instr = document.querySelector('#instruction');
+    const field = document.querySelector('#whack');
+    if (instr && field) {
+      const ir = instr.getBoundingClientRect();
+      const fr = field.getBoundingClientRect();
+      topLimit = Math.max(topLimit, Math.min(ir.bottom - fr.top + 10, fh * 0.5));
+    }
+    const bottomLimit = short ? 74 : (tier === 'mobile' ? 124 : 100); // feedback zone
+    const intersects = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+
+    const boxesOf = (h, w) => {
+      const p = mapHole(h, tier, fw, fh);
+      if (p.x < 6 || p.x > 94) return null; // mapped hole off-frame under heavy crop
+      const x = p.x / 100 * fw;
+      const y = p.y / 100 * fh;
+      const moleTop = y - moleW * 1.04;
+      return {
+        hole: h,
+        mole: { l: x - moleW / 2, t: moleTop, r: x + moleW / 2, b: y },
+        bubble: { l: x - w / 2, t: moleTop - 12 - bubbleH, r: x + w / 2, b: moleTop },
+      };
+    };
+
+    const widths = estW.slice().sort((a, b) => b - a); // place widest first
+    for (let attempt = 0; attempt < 16; attempt++) {
+      const order = shuffleList(layout.top.concat(layout.bottom));
+      const chosen = [];
+      for (let h of order) {
+        if (chosen.length >= count) break;
+        const w = widths[chosen.length];
+        const cand = boxesOf(h, w);
+        if (!cand) continue;
+        if (cand.bubble.t < topLimit) continue;
+        // Mole must stay inside the field; a tall bottom margin is not needed
+        // because every mole ducks into its hole before feedback appears.
+        if (cand.mole.b > fh - (short ? 26 : 44)) continue;
+        let ok = true;
+        for (const c of chosen) {
+          if (intersects(cand.bubble, c.bubble) || intersects(cand.mole, c.mole) ||
+              intersects(cand.bubble, c.mole) || intersects(cand.mole, c.bubble)) { ok = false; break; }
+        }
+        if (ok) chosen.push(cand);
+      }
+      if (!chosen.length) continue;
+      const sig = chosen.map((c) => c.hole.x + '/' + c.hole.y).sort().join('|');
+      if (sig === ctx.lastWaveSig && attempt < 12) continue;
+      if (sig === ctx.lastWaveSig && count > 1) {
+        // geometrically forced repeat (e.g. only one valid spread on a short
+        // field): try one target fewer for a visibly different pattern
+        const smaller = chosen.slice(0, count - 1);
+        if (smaller.length) {
+          ctx.lastWaveSig = smaller.map((c) => c.hole.x + '/' + c.hole.y).sort().join('|');
+          ctx.lastHoleKey = smaller[0].hole;
+          return smaller;
+        }
+      }
+      ctx.lastWaveSig = sig;
+      ctx.lastHoleKey = chosen[0].hole;
+      return chosen;
+    }
+    // Last resort: the spread top row.
+    const fallback = layout.top.slice(0, count).map((h, i) => boxesOf(h, widths[i] || capW));
+    ctx.lastWaveSig = fallback.map((c) => c.hole.x + '/' + c.hole.y).sort().join('|');
+    ctx.lastHoleKey = fallback[0].hole;
+    return fallback;
+  }
+
+  function clampNum(min, v, max) { return Math.min(max, Math.max(min, v)); }
+
+  function spawnWave(yard, tier, wave, isFallbackSingle) {
+    const fw = yard.clientWidth || 1;
+    const fh = yard.clientHeight || 1;
+    let boxes = pickWaveHoles(tier, wave.length, fw, fh, wave.map((w) => w.text));
+    let usable = wave;
+    if (boxes.length < wave.length) {
+      // Never stack two targets in one hole; when the field can only host
+      // fewer targets, keep the instruction-satisfying one and fill the rest.
+      const satisfying = wave.filter((w) => w.satisfies);
+      const rest = wave.filter((w) => !w.satisfies);
+      usable = shuffleList([...rest]).slice(0, Math.max(0, boxes.length - satisfying.length)).concat(satisfying);
+      usable = shuffleList(usable);
+      boxes = pickWaveHoles(tier, usable.length, fw, fh, usable.map((w) => w.text));
+      if (boxes.length < usable.length) usable = usable.slice(0, boxes.length);
+    }
+    usable.forEach((item, i) => {
+      const box = boxes[i];
+      const p = mapHole(box.hole, tier, fw, fh);
+      const mole = makeMole(p, {
+        bubble: item.text,
+        index: i,
+        label: item.text,
+        delay: i * 70,
+        onTap: () => submitClaim(item.claim !== undefined ? item.claim : item.text, mole),
+      });
+      ctx.moleIndex = (ctx.moleIndex + 1) % NEUTRAL_KEYS.length;
+      ctx.activeMoles.push({ el: mole, text: item.text });
+      yard.appendChild(mole);
     });
   }
 
-  function makeHole(pos) {
-    return el("div", {
-      class: "hole",
-      style: "left:" + pos.x + "%; top:" + pos.y + "%",
-    }, [el("div", { class: "hole__pit" })]);
+  // Option questions: one mascot per option, popping from the widest-spaced
+  // row of the current artwork's holes. Unused painted holes stay empty.
+  function spawnOptionMoles(yard, tier, q) {
+    const options = Array.isArray(q.options) ? q.options.slice(0, 3) : [];
+    const fw = yard.clientWidth || 1;
+    const fh = yard.clientHeight || 1;
+    const boxes = pickWaveHoles(tier, options.length, fw, fh, options.map(String));
+    const usable = Math.min(options.length, boxes.length);
+    for (let i = 0; i < usable; i++) {
+      const box = boxes[i];
+      const option = options[i];
+      const p = mapHole(box.hole, tier, fw, fh);
+      const mole = makeMole(p, {
+        bubble: String(option),
+        index: i,
+        label: 'Answer: ' + option,
+        delay: i * 70,
+        onTap: () => submitClaim(option, mole),
+      });
+      ctx.activeMoles.push({ el: mole, text: String(option) });
+      yard.appendChild(mole);
+    }
   }
 
   function makeMole(pos, options) {
     const delay = options.delay || 0;
+    // Cycle personalities (glasses / student / cool) so a wave feels alive;
+    // neutral art never reveals anything about the sentence.
+    const personality = NEUTRAL_KEYS[(ctx.moleIndex + (options.index || 0)) % NEUTRAL_KEYS.length];
     const mole = el("button", {
       class: "mole",
       // bottom:(100-y)% pins the mascot's feet at the hole centre line
@@ -804,7 +1235,7 @@
       el("span", { class: "mole__clip" }, [
         el("img", {
           class: "mole__img",
-          src: MASCOTS + options.mascot + ".png",
+          src: PRAIRIE_DOG_ASSETS.neutral[personality],
           alt: "",
           style: "animation-delay:" + delay + "ms",
         }),
@@ -823,6 +1254,43 @@
     return mole;
   }
 
+  // Swap the character image inside a mole WITHOUT moving its box — the
+  // wrapper keeps its size, so glasses -> thumbs-up -> smashed never jumps.
+  function setMoleArt(mole, url) {
+    const img = mole.querySelector(".mole__img");
+    if (img && img.getAttribute("src") !== url) img.src = url;
+  }
+
+  // Reaction state machines driven ONLY by the engine result.
+  function playCorrectReaction(mole, streak) {
+    mole.classList.add("is-correct");
+    // celebrate on strong success (streak 3+), thumbs-up otherwise
+    setMoleArt(mole, streak >= 3 ? PRAIRIE_DOG_ASSETS.correct.celebrate : PRAIRIE_DOG_ASSETS.correct.thumbsUp);
+    mole.classList.add("is-bounce");
+  }
+
+  function playWrongReaction(mole, livesAfter) {
+    mole.classList.add("is-wrong");
+    if (livesAfter <= 0) {
+      // losing the last life is the strongest failure beat
+      setMoleArt(mole, PRAIRIE_DOG_ASSETS.wrong.crying);
+      return;
+    }
+    // surprised -> smashed -> dizzy cartoon beat (~700ms total, still snappy)
+    setMoleArt(mole, PRAIRIE_DOG_ASSETS.wrong.surprised);
+    setTimeout(() => {
+      if (!mole.isConnected) return;
+      setMoleArt(mole, PRAIRIE_DOG_ASSETS.wrong.smashed);
+      mole.classList.add("is-smashed");
+    }, 140);
+    setTimeout(() => {
+      if (!mole.isConnected) return;
+      setMoleArt(mole, PRAIRIE_DOG_ASSETS.wrong.dizzy);
+      mole.classList.remove("is-smashed");
+      mole.classList.add("is-dizzy");
+    }, 420);
+  }
+
   function renderSentenceWithBlank(text) {
     const frag = document.createDocumentFragment();
     const parts = String(text).split(/_{2,}/);
@@ -833,31 +1301,45 @@
     return frag;
   }
 
-  function submit(answer) {
+  function submitClaim(answer, moleEl) {
     if (ctx.questionLocked) return;
-    ctx.questionLocked = true; // block rapid double taps until the next question
+    ctx.questionLocked = true; // first valid hit locks the whole wave
+    ctx.lastHitEl = moleEl || null;
     const result = engine.submitAnswer(answer);
-    if (!result.accepted) ctx.questionLocked = false;
+    if (!result.accepted) {
+      ctx.questionLocked = false;
+      ctx.lastHitEl = null;
+    }
   }
 
   /* ----------------------------- feedback ------------------------------ */
 
   function showFeedback(feedback) {
-    const coach = $("#feedback");
-    coach.classList.toggle("coach--wrong", !feedback.correct);
+    // ONE contained card, rebuilt from a clean state every time — no ghost
+    // states, no strips: reset classes and text before rendering either state.
+    const card = $("#feedback");
+    card.classList.remove("is-correct", "is-wrong");
+    $("#feedback-title").textContent = "";
+    $("#feedback-detail").textContent = "";
+
+    card.classList.add(feedback.correct ? "is-correct" : "is-wrong");
     $("#feedback-icon").src = ICONS + (feedback.correct ? "star-full" : "wrong") + ".png";
     $("#feedback-title").textContent = feedback.correct ? "Correct!" : "Not quite";
 
-    let detail = "";
+    const detail = $("#feedback-detail");
     if (!feedback.correct) {
-      detail = "Correct: " + (feedback.correctAnswer || "");
-      if (feedback.explanation) detail += " — " + feedback.explanation;
+      detail.appendChild(el("div", { class: "feedback-card__line feedback-card__line--ok", text: "Correct: " + (feedback.correctAnswer || "") }));
+      if (feedback.explanation) {
+        detail.appendChild(el("div", { class: "feedback-card__line feedback-card__line--rule", text: feedback.explanation }));
+      }
     } else {
-      detail = feedback.correction || feedback.explanation || "Well done!";
+      detail.appendChild(el("div", {
+        class: "feedback-card__line",
+        text: feedback.correction || feedback.explanation || "Well done!",
+      }));
     }
-    $("#feedback-detail").textContent = detail;
     $("#feedback-continue").textContent = feedback.isFinalQuestion ? "Results" : "Next";
-    coach.hidden = false;
+    card.hidden = false;
   }
 
   function hideFeedback() {
@@ -875,14 +1357,15 @@
       correctValue: feedback.correctAnswer,
       correct: feedback.correct,
     };
-    const same = (a, b) => String(a) === String(b);
 
-    // moles: hit reaction on the chosen one, dim + duck the rest
+    // moles: hit reaction on the one that was tapped (or matched by text),
+    // dim + duck the rest of the wave
     const moles = [...document.querySelectorAll("#yard .mole")];
     moles.forEach((mole) => {
       const bubble = mole.querySelector(".mole__bubble");
       const value = bubble ? bubble.textContent : "";
-      const isChosen = same(value, answerText(feedback.learnerAnswer)) ||
+      const isChosen = mole === ctx.lastHitEl ||
+        String(value) === String(feedback.learnerAnswer) ||
         (ctx.question && ctx.question.type === "correct_incorrect" && mole.classList.contains("is-hit"));
       if (isChosen) {
         mole.classList.add("is-hit", feedback.correct ? "is-correct" : "is-wrong");
@@ -893,10 +1376,10 @@
       if (isChosen) setTimeout(() => mole.classList.add("is-down"), feedback.correct ? 620 : 900);
     });
 
-    // paddles (binary questions)
+    // paddles only exist in the no-decoy-data fallback
     const good = $("#answer-correct");
     const bad = $("#answer-incorrect");
-    if (ctx.question && ctx.question.type === "correct_incorrect") {
+    if (!$("#binary").hidden) {
       const pickedGood = feedback.learnerAnswer === true;
       [good, bad].forEach((p) => p.classList.remove("is-picked-good", "is-picked-bad", "is-dim"));
       if (feedback.correct) {
@@ -1000,10 +1483,15 @@
 
   function continueAfterPass(result) {
     Sound.play("click");
-    if (ctx.gameCompleted) { renderLevelComplete(result, true); return; }
+    // Finishing all LOADED content is only full-game completion when the
+    // declared level count has actually shipped; otherwise it's a level win
+    // with more content on the way.
+    const info = engine.getGameInfo();
+    const contentComplete = (info.declaredTotalLevels || 0) <= info.levelsLoaded;
+    if (ctx.gameCompleted && contentComplete) { renderLevelComplete(result, "game"); return; }
     const levelDone = engine.getLevelProgress(result.levelId).completed;
     if (levelDone && ctx.levelJustCompleted === result.levelId) {
-      renderLevelComplete(result, false);
+      renderLevelComplete(result, ctx.gameCompleted ? "partial" : "level");
       return;
     }
     const next = engine.getNextUnlockedActivity();
@@ -1054,25 +1542,33 @@
 
   /* ------------------------- level complete screen --------------------- */
 
-  function renderLevelComplete(result, gameComplete) {
+  function renderLevelComplete(result, outcome) {
+    // outcome: "game" = every declared level shipped and finished,
+    //          "partial" = last loaded level finished, more content coming,
+    //          "level" = one level of several finished.
     const body = $("#level-complete-body");
     clearNode(body);
     const progress = engine.getLevelProgress(result.levelId);
     const level = engine.getLevel(result.levelId);
+    const fullGame = outcome === "game";
 
     body.appendChild(el("div", { class: "level-complete__banner" }, [
-      el("img", { src: gameComplete ? REWARDS + "trophy-gold.png" : REWARDS + "banner.png", alt: "" }),
+      el("img", { src: fullGame ? REWARDS + "trophy-gold.png" : REWARDS + "banner.png", alt: "" }),
     ]));
     body.appendChild(el("h2", {
       class: "level-complete__title",
-      text: gameComplete ? "Grammar Quest Complete!" : "Level " + result.levelId + " Complete!",
+      text: fullGame ? "Grammar Quest Complete!" : "Level " + result.levelId + " Complete!",
     }));
     body.appendChild(el("p", {
       class: "level-complete__subtitle",
-      text: gameComplete ? "You finished every challenge. Amazing work!" : (level ? level.title : ""),
+      text: fullGame
+        ? "You finished every challenge. Amazing work!"
+        : outcome === "partial"
+          ? "More levels coming soon"
+          : (level ? level.title : ""),
     }));
     body.appendChild(el("div", { class: "level-complete__chest" }, [
-      el("img", { src: gameComplete ? MASCOTS + "owl.png" : REWARDS + "chest.png", alt: "" }),
+      el("img", { src: fullGame ? MASCOTS + "owl.png" : REWARDS + "chest.png", alt: "" }),
     ]));
 
     const stats = el("div", { class: "level-complete__stats" });
@@ -1086,10 +1582,10 @@
     const actions = el("div", { class: "level-complete__actions" });
     actions.appendChild(el("button", {
       class: "btn btn--primary",
-      text: gameComplete ? "Back to Home" : ctx.gameCompleted || !hasNextLevel ? "Continue" : "Continue to Level " + (result.levelId + 1),
+      text: fullGame ? "Back to Home" : hasNextLevel ? "Continue to Level " + (result.levelId + 1) : "Continue",
       onclick: () => {
         Sound.play("click");
-        if (gameComplete || ctx.gameCompleted) { renderHome(); return; }
+        if (fullGame) { renderHome(); return; }
         if (!hasNextLevel) { renderMap(); return; }
         const next = engine.getNextUnlockedActivity();
         if (next) openIntro(next.levelId, next.challengeId);
@@ -1151,26 +1647,26 @@
     });
 
     engine.on(E.STREAK_CHANGED, (payload) => {
-      if (payload.streak < 2) return;
-      const pop = $("#streak-pop");
-      $("#streak-pop-count").textContent = "×" + payload.streak;
-      pop.classList.remove("is-out");
-      pop.hidden = false;
-      clearTimeout(ctx.streakTimer);
-      ctx.streakTimer = setTimeout(() => {
-        pop.classList.add("is-out");
-        setTimeout(() => { pop.hidden = true; }, 280);
-      }, 1500);
+      // streak lives INSIDE the HUD next to the score — never floats over gameplay
+      const chip = $("#hud-streak");
+      if (!chip) return;
+      if (payload.streak < 2) { chip.hidden = true; return; }
+      $("#hud-streak-count").textContent = "\u00d7" + payload.streak;
+      chip.hidden = false;
+      chip.classList.remove("bump");
+      void chip.offsetWidth;
+      chip.classList.add("bump");
       if (STREAK_MILESTONES.includes(payload.streak)) Sound.play("streak");
     });
 
     engine.on(E.LIVES_CHANGED, (payload) => {
       const hearts = $("#hud-hearts");
       clearNode(hearts);
-      const row = heartsRow(payload.lives, payload.maxLives);
+      hearts.appendChild(heartsRow(payload.lives, payload.maxLives));
+      hearts.classList.toggle("is-low", payload.lives === 1);
       if (payload.lost) {
-        const lostIndex = payload.lives; // the heart just after remaining ones
-        const lostImg = row.children[lostIndex];
+        // the heart just after the remaining ones is the one that was lost
+        const lostImg = hearts.children[payload.lives];
         if (lostImg) {
           lostImg.classList.remove("heart--empty");
           lostImg.src = ICONS + "heart-full.png";
@@ -1181,7 +1677,6 @@
           }, 420);
         }
       }
-      hearts.appendChild(row);
     });
 
     engine.on(E.TIMER_TICK, (payload) => {
@@ -1373,10 +1868,19 @@
 
     document.addEventListener("keydown", onKeydown);
 
-    window.addEventListener("resize", () => {
+    // Debounced relayout on window resize and device rotation…
+    const queueRelayout = () => {
       clearTimeout(ctx.resizeTimer);
       ctx.resizeTimer = setTimeout(onResize, 150);
-    });
+    };
+    window.addEventListener("resize", queueRelayout);
+    window.addEventListener("orientationchange", queueRelayout);
+    // …and when the map's own box changes (platform container resizes the
+    // game without touching the window).
+    if (window.ResizeObserver) {
+      ctx.mapResizeObserver = new ResizeObserver(queueRelayout);
+      ctx.mapResizeObserver.observe(document.querySelector(".map-viewport"));
+    }
   }
 
   function syncSoundIcon() {
@@ -1412,22 +1916,42 @@
       if (ctx.questionLocked || engine.status !== "playing") return;
       const q = ctx.question;
       if (!q) return;
-      if (q.type === "correct_incorrect") {
-        if (event.key === "1" || event.key === "ArrowLeft") submit(true);
-        if (event.key === "2" || event.key === "ArrowRight") submit(false);
-      } else if (Array.isArray(q.options)) {
+      // number keys whack the Nth visible target of the current wave
+      if (Array.isArray(ctx.activeMoles) && ctx.activeMoles.length) {
         const index = Number(event.key) - 1;
-        if (Number.isInteger(index) && index >= 0 && index < q.options.length) submit(q.options[index]);
+        if (Number.isInteger(index) && index >= 0 && index < ctx.activeMoles.length) {
+          ctx.activeMoles[index].el.click();
+          return;
+        }
+      }
+      if (q.type === "correct_incorrect" && !$("#binary").hidden) {
+        if (event.key === "1" || event.key === "ArrowLeft") submitClaim(true);
+        if (event.key === "2" || event.key === "ArrowRight") submitClaim(false);
       }
     }
   }
 
   function onResize() {
-    if (ctx.screen === "map" && window.innerWidth !== ctx.mapRenderWidth) {
-      // Width changed (rotation, desktop window resize): re-lay out the map
-      // for the new size/mode. Height-only changes (mobile URL bar) are
-      // ignored so the scroll position never jumps.
-      renderMap();
+    if (ctx.screen === "map") {
+      const vp = document.querySelector(".map-viewport");
+      const w = vp ? vp.clientWidth : 0;
+      const h = vp ? vp.clientHeight : 0;
+      if (w > 0 && h > 0) {
+        const tier = mapTierFor(w, h);
+        const tierChanged = tier !== ctx.mapTier;
+        const widthChanged = w !== ctx.mapRenderWidth;
+        // The desktop panorama aligns nodes through the cover crop, so its
+        // height matters too. Vertical tiers ignore height-only changes
+        // (mobile URL bar) so the scroll position never jumps.
+        const heightChanged = tier === "desktop" && h !== ctx.mapRenderHeight;
+        if (tierChanged) warmMapArt(tier);
+        if (tierChanged || widthChanged || heightChanged) {
+          // Full re-lay out: swaps background, node coordinates and trail for
+          // the new tier. Progress and the selected level live in the engine
+          // and ctx, so nothing is reset.
+          renderMap();
+        }
+      }
     }
     if (ctx.screen === "game" && ctx.question && $("#feedback").hidden) {
       // question visible and unanswered: re-render for the new field tier
@@ -1444,8 +1968,10 @@
   }
 
   function preload() {
-    ["assets/images/bg-map-journey.jpg",
-     MASCOTS + "dragon.png", MASCOTS + "owl.png", MASCOTS + "fox.png", MASCOTS + "book.png",
+    // Warm the Adventure Map artwork this device class will actually show,
+    // so the map never flashes the wrong background first.
+    warmMapArt(mapTierFor(window.innerWidth, window.innerHeight));
+    [MASCOTS + "dragon.png", MASCOTS + "owl.png", MASCOTS + "fox.png", MASCOTS + "book.png",
      ICONS + "heart-full.png", ICONS + "heart-empty.png",
      ICONS + "star-full.png", ICONS + "timer.png"].forEach((src) => {
       const img = new Image();
@@ -1460,12 +1986,37 @@
     $("#loading-status").textContent = "Loading Grammar Quest\u2026";
     try {
       await engine.init({ url: "data/questions.json" });
+      loadSentencePools();
     } catch (err) {
       console.error("[GrammarQuest UI] init failed:", err);
       $("#error-message").textContent = "We couldn't load the game data. " +
         (location.protocol === "file:" ? "Serve the folder over http (for example with the Live Server extension) and reload." : "Please try again.");
       showScreen("error");
     }
+  }
+
+  // Presentation-only sentence pools per level, used to build decoy targets
+  // for whack-a-mole waves. The engine never sees this data; it keeps
+  // validating every submitted claim against its own question state.
+  function loadSentencePools() {
+    ctx.sentencePool = {};
+    fetch("data/questions.json")
+      .then((res) => res.json())
+      .then((data) => {
+        (data.levels || []).forEach((level) => {
+          const pool = [];
+          (level.challenges || []).forEach((challenge) => {
+            (challenge.questions || []).forEach((question) => {
+              if (question.type === "correct_incorrect" && question.text &&
+                  !pool.some((p) => p.text === question.text.trim())) {
+                pool.push({ text: question.text.trim(), isCorrect: question.isCorrect === true });
+              }
+            });
+          });
+          ctx.sentencePool[String(level.id)] = pool;
+        });
+      })
+      .catch(() => { /* waves degrade to single-target fallback */ });
   }
 
   document.addEventListener("DOMContentLoaded", () => {

@@ -411,8 +411,8 @@ ul { list-style: none; }
 }
 .screen-header--map .screen-header__title { font-size: 1.12rem; }
 
-/* The vertical map scroller: full-bleed on phones; from tablet up the
-   artwork column floats centered inside it. */
+/* The map scroller: full-bleed vertical journey on phones; on tablet and
+   desktop the tier classes below frame each composition. */
 .map-viewport {
   flex: 1;
   min-height: 0;
@@ -431,30 +431,82 @@ ul { list-style: none; }
   width: 100%;
 }
 
-/* --------------- 7B. Journey map over the fantasy artwork ---------------
- * The whole map IS the uploaded vertical painting (foreground island at the
- * bottom, castle at the top). ui.js sizes the canvas to the artwork's aspect
- * and anchors level nodes on its islands, so the art never stretches or
- * crops. Nodes, locks, stars and labels remain real DOM elements driven by
- * the engine — no progression state is baked into the picture.
+/* --------------- 7B. Journey map over the fantasy artworks ---------------
+ * THREE SEPARATE COMPOSITIONS, one per device class — never one image for
+ * all screens:
+ *   desktop (>1024px)  -> map-desktop.webp|jpg   (1672x941 panorama)
+ *   tablet  (<=1024px) -> map-tablet.webp|jpg    (1086x1448 portrait)
+ *   phone   (<=600px)  -> bg-map-journey.webp|jpg (941x1672 vertical)
+ * The media queries are the static defaults; ui.js additionally sets
+ * .map-canvas--desktop|tablet|mobile from the MEASURED map viewport, so the
+ * right artwork also wins inside a narrow platform container whose window
+ * is wide. Nodes are positioned in percent and (on the panorama) through
+ * the real cover-crop math, so they stay on their painted islands.
  * ---------------------------------------------------------------------- */
 
 .map-canvas--journey {
   position: relative;
   width: 100%;
   margin-inline: auto;
-  background-image: url("../assets/images/bg-map-journey.jpg");
-  background-size: cover;        /* canvas keeps the artwork aspect: exact fit */
-  background-position: center top;
+  background-image: url("../assets/images/map-desktop.jpg"); /* wide default */
+  background-size: cover;
+  background-position: center;
   background-repeat: no-repeat;
   background-color: #241A4A;     /* shows only while the artwork loads */
 }
 
+@media (max-width: 1024px) {
+  .map-canvas--journey { background-image: url("../assets/images/map-tablet.jpg"); }
+}
+@media (max-width: 600px) {
+  .map-canvas--journey { background-image: url("../assets/images/bg-map-journey.jpg"); }
+}
+
+/* JS tier classes (set from the measured map container) — kept last so the
+   container-aware choice always wins over the viewport media queries. */
+.map-canvas--mobile  { background-image: url("../assets/images/bg-map-journey.jpg"); }
+.map-canvas--tablet  { background-image: url("../assets/images/map-tablet.jpg"); }
+.map-canvas--desktop { background-image: url("../assets/images/map-desktop.jpg"); }
+
 @supports (background-image: image-set("a.webp" type("image/webp"))) {
   .map-canvas--journey {
     background-image: image-set(
+      url("../assets/images/map-desktop.webp") type("image/webp"),
+      url("../assets/images/map-desktop.jpg") type("image/jpeg")
+    );
+  }
+  @media (max-width: 1024px) {
+    .map-canvas--journey {
+      background-image: image-set(
+        url("../assets/images/map-tablet.webp") type("image/webp"),
+        url("../assets/images/map-tablet.jpg") type("image/jpeg")
+      );
+    }
+  }
+  @media (max-width: 600px) {
+    .map-canvas--journey {
+      background-image: image-set(
+        url("../assets/images/bg-map-journey.webp") type("image/webp"),
+        url("../assets/images/bg-map-journey.jpg") type("image/jpeg")
+      );
+    }
+  }
+  .map-canvas--mobile {
+    background-image: image-set(
       url("../assets/images/bg-map-journey.webp") type("image/webp"),
       url("../assets/images/bg-map-journey.jpg") type("image/jpeg")
+    );
+  }
+  .map-canvas--tablet {
+    background-image: image-set(
+      url("../assets/images/map-tablet.webp") type("image/webp"),
+      url("../assets/images/map-tablet.jpg") type("image/jpeg")
+    );
+  }
+  .map-canvas--desktop {
+    background-image: image-set(
+      url("../assets/images/map-desktop.webp") type("image/webp"),
+      url("../assets/images/map-desktop.jpg") type("image/jpeg")
     );
   }
 }
@@ -462,29 +514,26 @@ ul { list-style: none; }
 /* Hidden for one frame so nodes never flash in unpositioned. */
 .map-canvas--journey.is-positioning { visibility: hidden; }
 
-/* --- dotted, softly glowing trail over the painted pathways ------------- */
+/* --- dotted, softly glowing trail over the painted pathways -------------
+ * Colors and caps live here; stroke widths / dash arrays are set as SVG
+ * attributes by drawJourneyPath() so the trail scales with the stage. */
 
 .map-path { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .map-path__glow {
   fill: none;
   stroke: rgba(255, 224, 138, 0.22);
-  stroke-width: 12;
   stroke-linecap: round;
 }
 .map-path__dash {
   fill: none;
   stroke: #fff;
-  stroke-width: 5;
   stroke-linecap: round;
-  stroke-dasharray: 0.1 13.5;
   filter: drop-shadow(0 1px 3px rgba(20, 12, 48, 0.55));
 }
 .map-path__stub {
   fill: none;
   stroke: rgba(255, 255, 255, 0.78);
-  stroke-width: 4;
   stroke-linecap: round;
-  stroke-dasharray: 0.1 12;
   opacity: 0.66;
 }
 
@@ -596,26 +645,68 @@ ul { list-style: none; }
 }
 .map-jnode__stars img { width: 17px; height: 17px; }
 
-/* cream pill keeps titles readable over busy scenery */
+/* cream pill keeps titles readable over busy scenery; long titles wrap to a
+   second line instead of overflowing toward the screen edge */
 .map-jnode__label {
-  max-width: 156px;
-  padding: 4px 13px;
-  border-radius: 999px;
+  max-width: 122px;
+  padding: 4px 12px;
+  border-radius: 14px;
   background: rgba(255, 248, 229, 0.94);
   border: 1px solid rgba(122, 96, 190, 0.35);
   color: var(--ink-900);
   font-size: clamp(0.76rem, 3vw, 0.9rem);
   font-weight: 700;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.18;
+  text-align: center;
+  overflow-wrap: break-word;
+  text-wrap: balance;
   box-shadow: 0 3px 10px rgba(15, 8, 40, 0.35);
 }
 .map-jnode--locked .map-jnode__label,
 .map-jnode--soon .map-jnode__label {
   background: rgba(243, 240, 233, 0.82);
   opacity: 0.85;
+}
+
+/* --- tier node scales ----------------------------------------------------
+ * The rules above are the phone scale (kept untouched). The desktop
+ * panorama spreads bigger islands (90-120px current) across a wide stage;
+ * the tablet composition sits between the two. Sized with clamp() so the
+ * discs stay inside each tier's spec at every tested viewport. */
+
+.map-tier-desktop .map-jnode--current .map-jnode__disc {
+  width: clamp(96px, 8vw, 124px);
+  font-size: clamp(2.2rem, 2.4vw, 2.9rem);
+}
+.map-tier-desktop .map-jnode--unlocked .map-jnode__disc,
+.map-tier-desktop .map-jnode--completed .map-jnode__disc,
+.map-tier-desktop .map-jnode--perfect .map-jnode__disc {
+  width: clamp(84px, 6.4vw, 108px);
+  font-size: clamp(1.7rem, 1.9vw, 2.2rem);
+}
+.map-tier-desktop .map-jnode--locked .map-jnode__disc,
+.map-tier-desktop .map-jnode--soon .map-jnode__disc { width: clamp(76px, 5.6vw, 98px); }
+.map-tier-desktop .map-jnode__label {
+  max-width: 168px;
+  font-size: clamp(0.88rem, 0.8vw, 1rem);
+}
+.map-tier-desktop .map-jnode__stars img { width: 20px; height: 20px; }
+
+.map-tier-tablet .map-jnode--current .map-jnode__disc {
+  width: clamp(84px, 11vw, 106px);
+  font-size: clamp(2rem, 4.2vw, 2.5rem);
+}
+.map-tier-tablet .map-jnode--unlocked .map-jnode__disc,
+.map-tier-tablet .map-jnode--completed .map-jnode__disc,
+.map-tier-tablet .map-jnode--perfect .map-jnode__disc {
+  width: clamp(74px, 9.4vw, 94px);
+  font-size: clamp(1.6rem, 3.4vw, 2rem);
+}
+.map-tier-tablet .map-jnode--locked .map-jnode__disc,
+.map-tier-tablet .map-jnode--soon .map-jnode__disc { width: clamp(66px, 8.4vw, 84px); }
+.map-tier-tablet .map-jnode__label {
+  max-width: 140px;
+  font-size: clamp(0.82rem, 2.2vw, 0.94rem);
 }
 
 /* Map header brand — hidden on small phones, eyebrow on tablets, inline on
@@ -982,11 +1073,25 @@ ul { list-style: none; }
   cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><rect x="8" y="4" width="18" height="12" rx="3" fill="%23FFC531" stroke="%23372A73" stroke-width="2.5"/><rect x="19" y="14" width="6" height="6" fill="%23B9A5FF" stroke="%23372A73" stroke-width="2"/><path d="M21 19h2v16a3 3 0 0 1-6 0v-3h4z" fill="%23D9A066" stroke="%238B5A2B" stroke-width="2"/></svg>') 10 6, pointer;
 }
 
+/* The supplied artwork already contains the holes — one dedicated painting
+   per device class, swapped at the same thresholds ui.js uses for the
+   hole-position maps (mobile <= 600, tablet <= 1024, desktop > 1024). */
 .whack__bg {
   position: absolute;
   inset: 0;
-  background: url("../assets/images/bg-gameplay.jpg") center / cover no-repeat;
+  background: url("../assets/images/game-bg-desktop.jpg") center / cover no-repeat;
 }
+
+@media (max-width: 1024px) {
+  .whack__bg { background-image: url("../assets/images/game-bg-tablet.jpg"); }
+}
+
+@media (max-width: 600px) {
+  .whack__bg { background-image: url("../assets/images/game-bg-mobile.jpg"); }
+}
+
+/* Tall fields (portrait tablets) also use the portrait artwork */
+.whack.whack--tall .whack__bg { background-image: url("../assets/images/game-bg-mobile.jpg"); }
 
 .whack--speed .whack__bg::after {
   content: "";
@@ -1022,7 +1127,7 @@ ul { list-style: none; }
   box-shadow: 0 6px 16px rgba(20, 12, 48, 0.35);
 }
 
-.instruction__sparkle { color: var(--gold-600); font-size: 0.95rem; line-height: 1; }
+.instruction__sparkle { color: var(--gold-600); font-size: 0.95rem; line-height: 1; align-self: center; }
 
 .instruction__text {
   font-weight: 800;
@@ -1051,38 +1156,8 @@ ul { list-style: none; }
   padding-inline: 4px;
 }
 
-/* ---- Yard: targets aligned with the painted holes ---- */
+/* ---- Yard: target moles sit directly on the painted holes ---- */
 .yard { position: absolute; inset: 0; z-index: 2; }
-
-.hole {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  width: clamp(150px, 17vw, 250px);
-}
-
-.hole__pit {
-  width: 100%;
-  aspect-ratio: 2.5 / 1;
-  border-radius: 50%;
-  background: radial-gradient(ellipse at 50% 38%,
-    rgba(18, 11, 4, 0.94) 0%, rgba(44, 30, 11, 0.9) 55%, rgba(66, 47, 21, 0.4) 100%);
-  box-shadow: inset 0 8px 14px rgba(0, 0, 0, 0.6);
-}
-
-/* grass lip covers the lower half so the mascot stands inside the hole */
-.hole::after {
-  content: "";
-  position: absolute;
-  left: -2%;
-  right: -2%;
-  top: 50%;
-  height: 54%;
-  border-radius: 0 0 999px 999px;
-  background: linear-gradient(180deg, rgba(84, 158, 74, 0.92), rgba(58, 126, 58, 0.95));
-  box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.18);
-  z-index: 4;
-  pointer-events: none;
-}
 
 .mole {
   position: absolute;
@@ -1243,28 +1318,7 @@ ul { list-style: none; }
 .mole.is-dim .mole__img { filter: saturate(0.45) brightness(0.92); }
 .mole.is-dim .mole__bubble { opacity: 0.55; }
 
-/* ---- Bottom-left pause pill (the only pause control) ---- */
-.pause-pill {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
-  z-index: 6;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 8px 18px 8px 15px;
-  border-radius: var(--radius-pill);
-  background: linear-gradient(180deg, #43318F, #372A73);
-  border: 2px solid rgba(124, 92, 255, 0.5);
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.92rem;
-  box-shadow: 0 6px 14px rgba(20, 12, 48, 0.5);
-}
 
-.pause-pill:active { transform: translateY(1px) scale(0.98); }
-.pause-pill img { width: 16px; height: 16px; }
 
 /* ---- Binary answer paddles ---- */
 .binary {
@@ -1323,38 +1377,6 @@ ul { list-style: none; }
   70% { transform: translateX(-4px); }
 }
 
-/* ---- Streak pop + score popups ---- */
-.streak-pop {
-  position: absolute;
-  left: 12px;
-  bottom: 92px;
-  z-index: 7;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  background: rgba(255, 255, 255, 0.94);
-  border: 2px solid var(--gold-500);
-  border-radius: var(--radius-pill);
-  padding: 3px 12px 3px 5px;
-  font-weight: 800;
-  color: var(--brand-800);
-  font-variant-numeric: tabular-nums;
-  animation: streak-in 300ms cubic-bezier(0.34, 1.5, 0.64, 1) both;
-}
-
-.streak-pop img { width: 24px; height: 24px; }
-
-.streak-pop.is-out { animation: streak-out 260ms ease both; }
-
-@keyframes streak-in {
-  from { opacity: 0; transform: scale(0.6) rotate(-6deg); }
-  to   { opacity: 1; transform: scale(1) rotate(0); }
-}
-
-@keyframes streak-out {
-  to { opacity: 0; transform: translateY(-8px); }
-}
-
 .score-popups { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
 
 .score-popup {
@@ -1376,59 +1398,124 @@ ul { list-style: none; }
   to { opacity: 0; transform: translate(-50%, -170%); }
 }
 
-/* ---- Coach: slim bottom feedback (never blocks the game) ---- */
-.coach {
+/* ---- Pause control: top-left of the field, clear of the feedback zone ---- */
+.pause-pill {
   position: absolute;
-  left: 50%;
-  bottom: clamp(10px, 4%, 24px);
-  transform: translateX(-50%);
-  z-index: 9;
-  width: min(92%, 480px);
+  left: 12px;
+  top: 12px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 16px 8px 13px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(180deg, #43318F, #372A73);
+  border: 2px solid rgba(124, 92, 255, 0.5);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  box-shadow: 0 5px 12px rgba(20, 12, 48, 0.45);
+}
+
+.pause-pill:active { transform: translateY(1px) scale(0.98); }
+.pause-pill img { width: 15px; height: 15px; }
+
+/* ---- Score popups ---- */
+.score-popups { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
+
+.score-popup {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-weight: 800;
+  font-size: clamp(1.15rem, 2.8vw, 1.5rem);
+  color: var(--gold-600);
+  text-shadow: 0 2px 0 #fff, 0 4px 10px rgba(0, 0, 0, 0.25);
+  animation: popup-rise 900ms ease-out both;
+  white-space: nowrap;
+}
+
+.score-popup--life { color: var(--red-500); font-size: clamp(0.95rem, 2.2vw, 1.2rem); }
+
+@keyframes popup-rise {
+  from { opacity: 0; transform: translate(-50%, -30%); }
+  25% { opacity: 1; }
+  to { opacity: 0; transform: translate(-50%, -170%); }
+}
+
+/* ---- HUD streak chip (hidden until streak >= 2) ---- */
+.gamebar__streak {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: rgba(255, 252, 241, 0.97);
-  border: 3px solid var(--green-500);
-  border-radius: var(--radius-pill);
-  padding: 7px 8px 7px 13px;
-  box-shadow: 0 10px 26px rgba(20, 12, 48, 0.45);
-  animation: coach-in 240ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: var(--gold-500);
+  font-variant-numeric: tabular-nums;
 }
 
-.coach--wrong { border-color: var(--red-500); }
+.gamebar__streak img { width: 15px; height: 15px; }
+.gamebar__streak.bump { animation: score-bump 320ms ease; }
 
-@keyframes coach-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(22px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* ---- Feedback: ONE contained card inside the game field ---- */
+.feedback-card {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 16px;
+  z-index: 9;
+  width: min(560px, calc(100% - 32px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #FFFDF6;
+  border: 2.5px solid var(--green-500);
+  border-radius: 18px;
+  padding: 10px 12px 10px 14px;
+  box-shadow: 0 8px 20px rgba(20, 12, 48, 0.35);
+  animation: feedback-in 240ms ease both;
 }
 
-.coach__icon { width: 26px; height: 26px; object-fit: contain; flex-shrink: 0; }
+.feedback-card.is-wrong { border-color: var(--red-500); }
 
-.coach__body {
+@keyframes feedback-in {
+  from { opacity: 0; transform: translateX(-50%) scale(0.95); }
+  to   { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+
+.feedback-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.feedback-card__icon { width: 24px; height: 24px; object-fit: contain; }
+
+.feedback-card__title { font-size: 1rem; font-weight: 800; color: var(--green-600); white-space: nowrap; }
+.feedback-card.is-wrong .feedback-card__title { color: var(--red-600); }
+
+.feedback-card__body {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  line-height: 1.25;
+  gap: 2px;
+  line-height: 1.3;
 }
 
-.coach__title { font-size: 0.98rem; font-weight: 800; color: var(--green-600); }
-.coach--wrong .coach__title { color: var(--red-600); }
+.feedback-card__line { font-size: 0.88rem; color: #3A4666; overflow-wrap: anywhere; }
+.feedback-card__line--ok { font-weight: 700; color: var(--green-600); }
+.feedback-card__line--rule { color: #5A6B94; }
 
-.coach__detail {
-  font-size: 0.85rem;
-  color: #4A5578;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-}
-
-.coach__next {
+.feedback-card__next {
   flex-shrink: 0;
-  min-height: 42px;
-  padding: 6px 18px;
+  min-width: 86px;
+  height: 44px;
+  padding: 0 18px;
   border-radius: var(--radius-pill);
   background: var(--grad-gold);
   color: var(--brand-900);
@@ -1437,7 +1524,27 @@ ul { list-style: none; }
   box-shadow: 0 4px 12px rgba(240, 168, 28, 0.4);
 }
 
-.coach__next:active { transform: translateY(1px) scale(0.97); }
+.feedback-card__next:active { transform: translateY(1px) scale(0.97); }
+
+@media (max-width: 560px) {
+  .feedback-card {
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    width: calc(100% - 24px);
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 10px 12px;
+  }
+  .feedback-card__body { flex-basis: 100%; order: 2; }
+  .feedback-card__next { order: 3; margin-left: auto; }
+  .feedback-card__head { order: 1; }
+  .feedback-card__title { font-size: 0.95rem; }
+  .feedback-card__line { font-size: 0.82rem; }
+}
+
+@media (max-height: 480px) {
+  .feedback-card { bottom: 8px; padding: 6px 10px; gap: 8px; }
+  .feedback-card__next { height: 38px; }
+}
 
 /* ------------------------------ 11. Results ---------------------------- */
 .screen--results {
@@ -1726,36 +1833,22 @@ ul { list-style: none; }
   .gamebar__bar { height: 11px; }
 
   .instruction { top: 6px; padding: 6px 12px; width: min(68%, 280px); }
+  .instruction__hint { display: none; }
+  .instruction__text { font-size: 0.8rem; }
+  .instruction__sparkle { display: none; }
+  .instruction { width: min(84%, 300px); }
   .instruction__text { font-size: 0.88rem; }
   .instruction__hint { font-size: 0.72rem; }
   .instruction__sentence { font-size: 0.98rem; }
   .instruction__sparkle { font-size: 0.8rem;
     min-height: 40px; }
 
-  .hole { width: clamp(112px, 36vw, 160px); }
   .mole { width: clamp(88px, 27vw, 122px); }
   .mole__bubble { max-width: 38vw; min-width: 76px; font-size: 15px; padding: 7px 10px; }
 
-  .pause-pill {
-    left: auto;
-    right: 10px;
-    bottom: auto;
-    top: 10px;
-    width: 40px;
-    min-height: 40px;
-    padding: 0;
-    font-size: 0;              /* icon-only on phones to save space */
-    justify-content: center;
-    box-shadow: 0 4px 10px rgba(20, 12, 48, 0.4);
-  }
-  .pause-pill img { width: 17px; height: 17px; }
+  .pause-pill { left: 8px; top: 8px; min-height: 40px; padding: 0 12px; gap: 6px; font-size: 0.8rem; }
 
   .paddle { min-height: 52px; font-size: 0.95rem; }
-  .coach { padding: 6px 7px 6px 10px; gap: 8px; }
-  .coach__title { font-size: 0.9rem; }
-  .coach__detail { font-size: 0.78rem; -webkit-line-clamp: 3; }
-  .coach__next { min-height: 40px; padding: 5px 14px; font-size: 0.86rem; }
-  .streak-pop { left: 8px; bottom: 78px; }
 
   .home__actions .btn,
   .results__actions .btn,
@@ -1779,16 +1872,35 @@ ul { list-style: none; }
   background: linear-gradient(0deg, rgba(30, 20, 66, 0.8), rgba(30, 20, 66, 0));
 }
 
-/* Tablet and up: the artwork becomes a centered floating column on the
-   branded backdrop — the same vertical journey, framed. */
-@media (min-width: 768px) {
-  .map-fade { display: none; }
-  .map-viewport { padding: 4px clamp(16px, 4vw, 48px) calc(24px + var(--sab)); }
-  .map-canvas--journey {
-    max-width: 560px;
-    border-radius: var(--radius-l);
-    box-shadow: var(--shadow-pop);
-  }
+/* Tablet tier: the portrait tablet painting fills the available width as a
+   framed journey column; the header shares the same side insets as the map. */
+.map-tier-tablet .map-fade { display: none; }
+.map-tier-tablet .map-viewport {
+  padding: 6px clamp(14px, 3vw, 28px) calc(18px + var(--sab));
+}
+.map-tier-tablet .screen-header--map { margin-inline: clamp(14px, 3vw, 28px); }
+.map-tier-tablet .map-canvas--journey {
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-pop);
+}
+
+/* Desktop tier: the panorama occupies the full content area below the
+   header — no narrow centered column, no empty purple sides. On very tall
+   windows the stage caps its height (ui.js) so the cover crop can never
+   hide the edge islands; the canvas then centers vertically like a matted
+   frame. The header matches the map's width. */
+.map-tier-desktop .map-fade { display: none; }
+.map-tier-desktop .map-viewport {
+  padding: 8px 14px 14px;
+  overflow-y: hidden; /* the panorama is sized to fit; nothing to scroll */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.map-tier-desktop .screen-header--map { margin-inline: 14px; }
+.map-tier-desktop .map-canvas--journey {
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-pop);
 }
 
 /* Short screens (landscape phones): fit content, keep game playable */
@@ -1821,8 +1933,8 @@ ul { list-style: none; }
   .mole { width: clamp(64px, 15vh, 110px); }
   .mole__bubble { font-size: 15px; }
   .paddle { min-height: 46px; }
-  .binary, .coach { bottom: 6px; }
-  .pause-pill { left: 8px; bottom: 8px; min-height: 40px; padding: 6px 12px 6px 10px; }
+  .binary { bottom: 6px; }
+  .pause-pill { left: 8px; top: 8px; min-height: 36px; padding: 0 10px; font-size: 0.76rem; }
 }
 
 /* Reduced motion: user preference or in-game setting */
