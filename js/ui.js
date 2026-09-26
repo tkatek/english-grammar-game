@@ -1358,22 +1358,25 @@
       correct: feedback.correct,
     };
 
-    // moles: hit reaction on the one that was tapped (or matched by text),
-    // dim + duck the rest of the wave
-    const moles = [...document.querySelectorAll("#yard .mole")];
+    // The selected mole performs the Prairie Dog reaction driven by the
+    // ENGINE result (learner action, not sentence grammar); the rest of the
+    // wave dims and ducks away.
+    const moles = [...document.querySelectorAll('#yard .mole')];
     moles.forEach((mole) => {
-      const bubble = mole.querySelector(".mole__bubble");
-      const value = bubble ? bubble.textContent : "";
+      const bubble = mole.querySelector('.mole__bubble');
+      const value = bubble ? bubble.textContent : '';
       const isChosen = mole === ctx.lastHitEl ||
         String(value) === String(feedback.learnerAnswer) ||
-        (ctx.question && ctx.question.type === "correct_incorrect" && mole.classList.contains("is-hit"));
+        (ctx.question && ctx.question.type === 'correct_incorrect' && mole.classList.contains('is-hit'));
       if (isChosen) {
-        mole.classList.add("is-hit", feedback.correct ? "is-correct" : "is-wrong");
+        mole.classList.add('is-hit');
+        if (feedback.correct) playCorrectReaction(mole, feedback.streak || 0);
+        else playWrongReaction(mole, feedback.lives !== undefined ? feedback.lives : 1);
+        setTimeout(() => mole.classList.add('is-down'), feedback.correct ? 760 : 1150);
       } else {
-        mole.classList.add("is-dim");
-        setTimeout(() => mole.classList.add("is-down"), 260);
+        mole.classList.add('is-dim');
+        setTimeout(() => mole.classList.add('is-down'), 260);
       }
-      if (isChosen) setTimeout(() => mole.classList.add("is-down"), feedback.correct ? 620 : 900);
     });
 
     // paddles only exist in the no-decoy-data fallback
