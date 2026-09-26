@@ -2,13 +2,284 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#3B2A79">
   <title>Grammar Quest</title>
   <link rel="stylesheet" href="css/style.css">
   <script src="js/game.js" defer></script>
+  <script src="js/ui.js" defer></script>
 </head>
 <body>
-  <!-- Root container where the game will be rendered later -->
-  <div id="game-root"></div>
+  <div id="game-root" class="app" data-screen="loading">
+
+    <!-- ============================ LOADING ============================ -->
+    <section class="screen screen--loading" id="screen-loading" aria-label="Loading">
+      <div class="loading">
+        <img class="loading__mascot" src="assets/images/mascots/book.png" alt="" width="120" height="130">
+        <h1 class="loading__title">Grammar Quest</h1>
+        <p class="loading__status" id="loading-status">Loading Grammar Quest&hellip;</p>
+        <div class="loading__dots" aria-hidden="true"><span></span><span></span><span></span></div>
+      </div>
+    </section>
+
+    <!-- ============================ ERROR ============================ -->
+    <section class="screen screen--error" id="screen-error" aria-label="Error" hidden>
+      <div class="error-box">
+        <img class="error-box__mascot" src="assets/images/mascots/fox.png" alt="" width="120" height="128">
+        <h2 class="error-box__title">We couldn&rsquo;t load the game</h2>
+        <p class="error-box__text" id="error-message">Something went wrong while loading the questions.</p>
+        <button type="button" class="btn btn--primary btn--xl" id="error-retry">Retry</button>
+      </div>
+    </section>
+
+    <!-- ============================ HOME ============================ -->
+    <section class="screen screen--home" id="screen-home" aria-label="Home" hidden>
+      <div class="home">
+        <div class="home__sparkles" aria-hidden="true"><img src="assets/images/rewards/sparkles.png" alt=""></div>
+        <header class="home__brand">
+          <h1 class="home__title">Grammar Quest</h1>
+          <p class="home__subtitle">Master English grammar one challenge at a time.</p>
+        </header>
+        <div class="home__mascot">
+          <img src="assets/images/mascots/dragon.png" alt="Grammar Quest dragon mascot" width="240" height="280">
+        </div>
+        <ul class="home__stats" id="home-stats">
+          <!-- stat chips rendered by ui.js -->
+        </ul>
+        <div class="home__actions">
+          <button type="button" class="btn btn--primary btn--xl" id="home-continue">Start Adventure</button>
+          <button type="button" class="btn btn--secondary btn--xl" id="home-map">Level Map</button>
+        </div>
+        <div class="home__tools">
+          <button type="button" class="icon-btn" id="home-settings" aria-label="Settings">
+            <img src="assets/icons/settings.png" alt="" width="28" height="28">
+          </button>
+          <button type="button" class="icon-btn" id="home-sound" aria-label="Toggle sound">
+            <img src="assets/icons/sound-on.png" alt="" width="28" height="28">
+          </button>
+          <button type="button" class="icon-btn" id="home-help" aria-label="How to play">
+            <span class="icon-btn__glyph" aria-hidden="true">?</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ LEVEL MAP ============================ -->
+    <section class="screen screen--map" id="screen-map" aria-label="Level map" hidden>
+      <header class="screen-header">
+        <button type="button" class="icon-btn" id="map-home" aria-label="Back to home">
+          <img src="assets/icons/home.png" alt="" width="26" height="26">
+        </button>
+        <h2 class="screen-header__title">Adventure Map</h2>
+        <div class="star-total" id="map-stars" aria-label="Total stars">
+          <img src="assets/icons/star-full.png" alt="" width="22" height="22">
+          <span>0</span>
+        </div>
+      </header>
+      <div class="map-viewport">
+        <div class="map-canvas" id="map-canvas">
+          <!-- level nodes rendered by ui.js -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ LEVEL DETAIL ============================ -->
+    <section class="screen screen--level" id="screen-level" aria-label="Level details" hidden>
+      <header class="screen-header">
+        <button type="button" class="icon-btn" id="level-back" aria-label="Back to map">
+          <img src="assets/icons/arrow.png" class="icon-flip-x" alt="" width="26" height="26">
+        </button>
+        <div class="screen-header__titles">
+          <h2 class="screen-header__title" id="level-title">Level 1</h2>
+          <p class="screen-header__subtitle" id="level-topic"></p>
+        </div>
+        <div class="star-total" id="level-stars" aria-label="Level stars">
+          <img src="assets/icons/star-full.png" alt="" width="22" height="22">
+          <span>0</span>
+        </div>
+      </header>
+      <div class="level-body">
+        <p class="level-desc" id="level-desc"></p>
+        <ul class="challenge-list" id="challenge-list">
+          <!-- challenge cards rendered by ui.js -->
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============================ CHALLENGE INTRO ============================ -->
+    <section class="screen screen--intro" id="screen-intro" aria-label="Challenge intro" hidden>
+      <header class="screen-header">
+        <button type="button" class="icon-btn" id="intro-back" aria-label="Back to level">
+          <img src="assets/icons/arrow.png" class="icon-flip-x" alt="" width="26" height="26">
+        </button>
+        <div class="screen-header__titles">
+          <h2 class="screen-header__title" id="intro-level-title"></h2>
+        </div>
+        <span aria-hidden="true" style="width:44px"></span>
+      </header>
+      <div class="intro">
+        <p class="intro__kicker" id="intro-kicker">Challenge 1</p>
+        <h3 class="intro__title" id="intro-title">Choose the Correct Sentence</h3>
+        <p class="intro__instruction" id="intro-instruction"></p>
+        <ul class="intro__chips" id="intro-chips">
+          <!-- setting chips rendered by ui.js -->
+        </ul>
+        <img class="intro__mascot" id="intro-mascot" src="assets/images/mascots/owl.png" alt="" width="130" height="124">
+        <button type="button" class="btn btn--primary btn--xl" id="intro-start">Start Challenge</button>
+      </div>
+    </section>
+
+    <!-- ============================ GAMEPLAY ============================ -->
+    <section class="screen screen--game" id="screen-game" aria-label="Gameplay" hidden>
+      <div class="hud">
+        <div class="hud__row hud__row--main">
+          <button type="button" class="icon-btn icon-btn--solid hud__pause" id="hud-pause" aria-label="Pause game">
+            <img src="assets/icons/pause.png" alt="" width="24" height="24">
+          </button>
+          <div class="hud__title">
+            <span class="hud__level" id="hud-level"></span>
+            <span class="hud__challenge" id="hud-challenge"></span>
+          </div>
+          <div class="hud__timer" id="hud-timer-wrap" hidden>
+            <img src="assets/icons/timer.png" alt="" width="22" height="22">
+            <span class="hud__timer-value" id="hud-timer">0:00</span>
+          </div>
+        </div>
+        <div class="hud__row hud__row--sub">
+          <div class="hud__hearts" id="hud-hearts" aria-label="Lives"></div>
+          <div class="hud__progress">
+            <div class="hud__progress-bar"><div class="hud__progress-fill" id="hud-progress-fill"></div></div>
+            <span class="hud__progress-label" id="hud-progress-label">1 / 5</span>
+          </div>
+          <div class="hud__score" id="hud-score-wrap">
+            <span class="hud__score-label">Score</span>
+            <span class="hud__score-value" id="hud-score">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field" id="field">
+        <div class="field__bg" aria-hidden="true"></div>
+        <div class="prompt-bar" id="prompt-bar" role="heading" aria-level="2"></div>
+        <div class="sentence-card" id="sentence-card" hidden></div>
+        <div class="slots" id="slots" aria-hidden="false"></div>
+        <div class="choice-stack" id="choice-stack"></div>
+        <div class="binary-actions" id="binary-actions" hidden>
+          <button type="button" class="answer-btn answer-btn--correct" id="answer-correct">
+            <span class="answer-btn__mark answer-btn__mark--ok" aria-hidden="true">✓</span>
+            <span>Correct</span>
+          </button>
+          <button type="button" class="answer-btn answer-btn--wrong" id="answer-incorrect">
+            <span class="answer-btn__mark answer-btn__mark--no" aria-hidden="true">✗</span>
+            <span>Incorrect</span>
+          </button>
+        </div>
+        <div class="streak-badge" id="streak-badge" hidden>
+          <img src="assets/images/rewards/badge-xp.png" alt="" width="34" height="34">
+          <span class="streak-badge__count" id="streak-count">×2</span>
+        </div>
+        <div class="score-popups" id="score-popups" aria-hidden="true"></div>
+        <div class="final-test-ribbon" id="final-ribbon" hidden>Final Test</div>
+      </div>
+
+      <div class="feedback" id="feedback" hidden>
+        <div class="feedback__card" role="dialog" aria-label="Answer feedback">
+          <div class="feedback__head" id="feedback-head">
+            <img class="feedback__icon" id="feedback-icon" src="assets/icons/star-full.png" alt="" width="34" height="34">
+            <h3 class="feedback__title" id="feedback-title">Correct!</h3>
+          </div>
+          <div class="feedback__body" id="feedback-body"></div>
+          <button type="button" class="btn btn--primary" id="feedback-continue">Continue</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ RESULTS ============================ -->
+    <section class="screen screen--results" id="screen-results" aria-label="Challenge results" hidden>
+      <div class="results" id="results-body">
+        <!-- rendered by ui.js -->
+      </div>
+    </section>
+
+    <!-- ============================ REVIEW MISTAKES ============================ -->
+    <section class="screen screen--review" id="screen-review" aria-label="Review mistakes" hidden>
+      <header class="screen-header">
+        <button type="button" class="icon-btn" id="review-back" aria-label="Back">
+          <img src="assets/icons/arrow.png" class="icon-flip-x" alt="" width="26" height="26">
+        </button>
+        <h2 class="screen-header__title">Review Mistakes</h2>
+        <span aria-hidden="true" style="width:44px"></span>
+      </header>
+      <div class="review-body">
+        <ul class="review-list" id="review-list"></ul>
+      </div>
+    </section>
+
+    <!-- ============================ LEVEL COMPLETE ============================ -->
+    <section class="screen screen--level-complete" id="screen-level-complete" aria-label="Level complete" hidden>
+      <div class="level-complete" id="level-complete-body">
+        <!-- rendered by ui.js -->
+      </div>
+    </section>
+  </div>
+
+  <!-- ============================== MODALS ============================== -->
+  <div class="modal-root" id="modal-root" hidden>
+    <div class="modal modal--pause" id="modal-pause" role="dialog" aria-modal="true" aria-label="Game paused" hidden>
+      <h2 class="modal__title">Paused</h2>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--primary btn--block" id="pause-resume">Resume</button>
+        <button type="button" class="btn btn--secondary btn--block" id="pause-restart">Restart Challenge</button>
+        <button type="button" class="btn btn--secondary btn--block" id="pause-settings">Settings</button>
+        <button type="button" class="btn btn--ghost btn--block" id="pause-exit">Exit to Level</button>
+      </div>
+    </div>
+
+    <div class="modal modal--settings" id="modal-settings" role="dialog" aria-modal="true" aria-label="Settings" hidden>
+      <h2 class="modal__title">Settings</h2>
+      <div class="setting-row">
+        <span class="setting-row__label" id="label-sound">Sound effects</span>
+        <button type="button" class="switch" id="setting-sound" role="switch" aria-checked="true" aria-labelledby="label-sound">
+          <span class="switch__knob"></span>
+        </button>
+      </div>
+      <div class="setting-row">
+        <span class="setting-row__label" id="label-anim">Animations</span>
+        <button type="button" class="switch" id="setting-anim" role="switch" aria-checked="true" aria-labelledby="label-anim">
+          <span class="switch__knob"></span>
+        </button>
+      </div>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--primary btn--block" id="settings-close">Done</button>
+        <button type="button" class="btn btn--danger-ghost btn--block" id="settings-reset">Reset all progress</button>
+      </div>
+    </div>
+
+    <div class="modal modal--help" id="modal-help" role="dialog" aria-modal="true" aria-label="How to play" hidden>
+      <img class="modal__mascot" src="assets/images/mascots/owl.png" alt="" width="96" height="92">
+      <h2 class="modal__title">How to play</h2>
+      <ul class="help-list">
+        <li>Read the instruction at the top of the field.</li>
+        <li>Tap the right answer before the timer runs out.</li>
+        <li>Correct answers in a row build a streak bonus.</li>
+        <li>Wrong answers cost one heart — lose them all and the challenge ends.</li>
+        <li>Reach the target accuracy to pass and unlock the next challenge.</li>
+      </ul>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--primary btn--block" id="help-close">Got it</button>
+      </div>
+    </div>
+
+    <div class="modal modal--confirm" id="modal-confirm" role="dialog" aria-modal="true" aria-label="Confirm" hidden>
+      <h2 class="modal__title" id="confirm-title">Are you sure?</h2>
+      <p class="modal__text" id="confirm-text"></p>
+      <div class="modal__actions modal__actions--row">
+        <button type="button" class="btn btn--secondary" id="confirm-cancel">Cancel</button>
+        <button type="button" class="btn btn--danger" id="confirm-ok">Yes, reset</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" hidden></div>
 </body>
 </html>

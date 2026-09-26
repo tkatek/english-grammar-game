@@ -1639,6 +1639,9 @@
       const found = this._findChallenge(levelId, challengeId);
       if (!found) return null;
       const rec = getStoredChallenge(this._progress, String(found.level.id), String(found.challenge.id));
+      const settings = this._mergeSettings(found.challenge);
+      const poolSize = (found.challenge.questions || []).length;
+      const wanted = Number(settings.questionCount);
       return {
         levelId: found.level.id,
         levelTitle: found.level.title,
@@ -1646,7 +1649,15 @@
         title: found.challenge.title,
         type: found.challenge.type || null,
         difficulty: found.challenge.difficulty || null,
-        questionCount: (found.challenge.questions || []).length,
+        questionCount: poolSize,
+        // effective play-session size (questionCount sub-selection applied)
+        effectiveQuestionCount: Number.isFinite(wanted) && wanted > 0 ? Math.min(Math.floor(wanted), poolSize) : poolSize,
+        settings: {
+          timeLimitSeconds: Number(settings.timeLimitSeconds) > 0 ? Number(settings.timeLimitSeconds) : null,
+          lives: Math.max(1, Math.floor(Number(settings.lives) || ENGINE_DEFAULTS.lives)),
+          passingPercentage: Number(settings.passingPercentage),
+          maxStars: Math.max(0, Math.floor(Number(settings.maxStars) || 0)),
+        },
         unlocked: this.isChallengeUnlocked(levelId, challengeId),
         ...(rec ? deepClone(rec) : { attempts: 0, completed: false, bestScore: 0, bestAccuracy: 0, highestStars: 0, bestStreak: 0, completedAt: null }),
       };
