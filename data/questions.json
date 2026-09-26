@@ -1,0 +1,346 @@
+{
+  "game": {
+    "id": "grammar_quest",
+    "title": "Grammar Quest",
+    "totalLevels": 20,
+    "defaultSettings": {
+      "lives": 3,
+      "passingPercentage": 70,
+      "maxStars": 3,
+      "starThresholds": {
+        "oneStar": 70,
+        "twoStars": 80,
+        "threeStars": 90
+      }
+    }
+  },
+  "levels": [
+    {
+      "id": 1,
+      "title": "Present Simple",
+      "grammarTopic": "Present Simple: He, She, It",
+      "description": "Learn how to use the present simple correctly with he, she and it.",
+      "difficulty": "beginner",
+      "unlockedByDefault": true,
+      "challenges": [
+        {
+          "id": 1,
+          "title": "Choose the Correct Sentence",
+          "type": "correct_sentence",
+          "difficulty": "easy",
+          "settings": {
+            "timeLimitSeconds": 90,
+            "lives": 3,
+            "passingPercentage": 70,
+            "maxStars": 3,
+            "starThresholds": {
+              "oneStar": 70,
+              "twoStars": 80,
+              "threeStars": 90
+            }
+          },
+          "questions": [
+            {
+              "id": 1,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "She likes bananas.",
+              "isCorrect": true,
+              "correctAnswer": "She likes bananas.",
+              "correction": null,
+              "explanation": "With he, she and it, add -s to the verb."
+            },
+            {
+              "id": 2,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "He play football every Sunday.",
+              "isCorrect": false,
+              "correctAnswer": "He plays football every Sunday.",
+              "correction": "He plays football every Sunday.",
+              "explanation": "With he, use plays, not play."
+            },
+            {
+              "id": 3,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "My sister works in a hospital.",
+              "isCorrect": true,
+              "correctAnswer": "My sister works in a hospital.",
+              "correction": null,
+              "explanation": "My sister is third-person singular, so work becomes works."
+            },
+            {
+              "id": 4,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "Tom watch TV at night.",
+              "isCorrect": false,
+              "correctAnswer": "Tom watches TV at night.",
+              "correction": "Tom watches TV at night.",
+              "explanation": "With Tom (he), watch becomes watches."
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Find the Mistake",
+          "type": "incorrect_sentence",
+          "difficulty": "easy",
+          "settings": {
+            "timeLimitSeconds": 90,
+            "lives": 3,
+            "passingPercentage": 70,
+            "maxStars": 3,
+            "starThresholds": {
+              "oneStar": 70,
+              "twoStars": 80,
+              "threeStars": 90
+            }
+          },
+          "questions": [
+            {
+              "id": 1,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "She don't like coffee.",
+              "isCorrect": false,
+              "correctAnswer": "She doesn't like coffee.",
+              "correction": "She doesn't like coffee.",
+              "explanation": "Use doesn't with he, she and it."
+            },
+            {
+              "id": 2,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "He doesn't work on Sundays.",
+              "isCorrect": true,
+              "correctAnswer": "He doesn't work on Sundays.",
+              "correction": null,
+              "explanation": "After doesn't, use the base form of the verb."
+            },
+            {
+              "id": 3,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "My brother doesn't likes pizza.",
+              "isCorrect": false,
+              "correctAnswer": "My brother doesn't like pizza.",
+              "correction": "My brother doesn't like pizza.",
+              "explanation": "After doesn't, use like, not likes."
+            },
+            {
+              "id": 4,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "Sara studies English every day.",
+              "isCorrect": true,
+              "correctAnswer": "Sara studies English every day.",
+              "correction": null,
+              "explanation": "Study changes to studies with he, she and it."
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Complete the Sentence",
+          "type": "missing_word",
+          "difficulty": "medium",
+          "settings": {
+            "timeLimitSeconds": 75,
+            "lives": 3,
+            "passingPercentage": 70,
+            "maxStars": 3,
+            "starThresholds": {
+              "oneStar": 70,
+              "twoStars": 80,
+              "threeStars": 90
+            }
+          },
+          "questions": [
+            {
+              "id": 1,
+              "type": "missing_word",
+              "prompt": "Choose the missing word.",
+              "text": "She ___ bananas.",
+              "options": [
+                "like",
+                "likes",
+                "liking"
+              ],
+              "correctAnswer": "likes",
+              "correction": "She likes bananas.",
+              "explanation": "With she, add -s to the verb."
+            },
+            {
+              "id": 2,
+              "type": "missing_word",
+              "prompt": "Choose the missing word.",
+              "text": "He ___ football after school.",
+              "options": [
+                "play",
+                "plays",
+                "playing"
+              ],
+              "correctAnswer": "plays",
+              "correction": "He plays football after school.",
+              "explanation": "With he, use plays."
+            },
+            {
+              "id": 3,
+              "type": "missing_word",
+              "prompt": "Choose the missing word.",
+              "text": "My mother ___ to work at 8:00.",
+              "options": [
+                "go",
+                "goes",
+                "going"
+              ],
+              "correctAnswer": "goes",
+              "correction": "My mother goes to work at 8:00.",
+              "explanation": "Go becomes goes with he, she and it."
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Speed Round",
+          "type": "speed_round",
+          "difficulty": "medium",
+          "settings": {
+            "timeLimitSeconds": 45,
+            "lives": 3,
+            "passingPercentage": 70,
+            "maxStars": 3,
+            "starThresholds": {
+              "oneStar": 70,
+              "twoStars": 80,
+              "threeStars": 90
+            }
+          },
+          "questions": [
+            {
+              "id": 1,
+              "type": "correct_incorrect",
+              "prompt": "Choose quickly: correct or incorrect?",
+              "text": "He likes pizza.",
+              "isCorrect": true,
+              "correctAnswer": "He likes pizza.",
+              "correction": null,
+              "explanation": "He takes likes in the present simple."
+            },
+            {
+              "id": 2,
+              "type": "correct_incorrect",
+              "prompt": "Choose quickly: correct or incorrect?",
+              "text": "She go to school every day.",
+              "isCorrect": false,
+              "correctAnswer": "She goes to school every day.",
+              "correction": "She goes to school every day.",
+              "explanation": "With she, go becomes goes."
+            },
+            {
+              "id": 3,
+              "type": "correct_incorrect",
+              "prompt": "Choose quickly: correct or incorrect?",
+              "text": "My father drives to work.",
+              "isCorrect": true,
+              "correctAnswer": "My father drives to work.",
+              "correction": null,
+              "explanation": "My father is third-person singular, so drive becomes drives."
+            },
+            {
+              "id": 4,
+              "type": "correct_incorrect",
+              "prompt": "Choose quickly: correct or incorrect?",
+              "text": "It rain a lot here.",
+              "isCorrect": false,
+              "correctAnswer": "It rains a lot here.",
+              "correction": "It rains a lot here.",
+              "explanation": "With it, add -s to rain."
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Final Test",
+          "type": "mixed",
+          "difficulty": "hard",
+          "settings": {
+            "timeLimitSeconds": 120,
+            "lives": 3,
+            "passingPercentage": 80,
+            "maxStars": 3,
+            "starThresholds": {
+              "oneStar": 80,
+              "twoStars": 90,
+              "threeStars": 95
+            }
+          },
+          "questions": [
+            {
+              "id": 1,
+              "type": "correct_incorrect",
+              "prompt": "Is this sentence correct?",
+              "text": "She likes bananas.",
+              "isCorrect": true,
+              "correctAnswer": "She likes bananas.",
+              "correction": null,
+              "explanation": "With she, add -s to the verb."
+            },
+            {
+              "id": 2,
+              "type": "missing_word",
+              "prompt": "Choose the missing word.",
+              "text": "He ___ football every Sunday.",
+              "options": [
+                "play",
+                "plays",
+                "playing"
+              ],
+              "correctAnswer": "plays",
+              "correction": "He plays football every Sunday.",
+              "explanation": "With he, use plays."
+            },
+            {
+              "id": 3,
+              "type": "multiple_choice",
+              "prompt": "Choose the correct sentence.",
+              "options": [
+                "She don't like coffee.",
+                "She doesn't likes coffee.",
+                "She doesn't like coffee."
+              ],
+              "correctAnswer": "She doesn't like coffee.",
+              "correction": "She doesn't like coffee.",
+              "explanation": "Use doesn't + base verb with he, she and it."
+            },
+            {
+              "id": 4,
+              "type": "multiple_choice",
+              "prompt": "Choose the correct sentence.",
+              "options": [
+                "My brother watches TV at night.",
+                "My brother watch TV at night.",
+                "My brother watching TV at night."
+              ],
+              "correctAnswer": "My brother watches TV at night.",
+              "correction": "My brother watches TV at night.",
+              "explanation": "With my brother (he), watch becomes watches."
+            },
+            {
+              "id": 5,
+              "type": "correct_incorrect",
+              "prompt": "Is this sentence correct?",
+              "text": "He doesn't plays tennis.",
+              "isCorrect": false,
+              "correctAnswer": "He doesn't play tennis.",
+              "correction": "He doesn't play tennis.",
+              "explanation": "After doesn't, use the base form play."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
