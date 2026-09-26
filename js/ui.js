@@ -4,7 +4,7 @@
  * Subscribes to the game engine (js/game.js) and renders screens. Contains
  * no game rules: all state transitions go through engine action methods.
  * Screens: loading, home, map, level, intro, game, results, review,
- * level-complete, error + modals (pause / settings / help / confirm).
+ * level-complete, error + modals (pause / help / confirm).
  * ========================================================================== */
 (function () {
   "use strict";
@@ -154,7 +154,6 @@
   const SETTINGS_KEY = "grammar-quest:ui-settings:v1";
   const SOUND_NAMES = ["correct", "wrong", "streak", "timer-low", "complete", "unlock", "click"];
 
-  const ICONS = "assets/icons/";
   const REWARDS = "assets/images/rewards/";
   const MASCOTS = "assets/images/mascots/";
 
@@ -190,33 +189,54 @@
     return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
   }
 
-  const iconImg = (name, size, alt) =>
-    el("img", { src: ICONS + name + ".png", alt: alt || "", width: size, height: size, loading: "lazy" });
+  /* SVG icon helper: renders a <use> reference into the sprite that lives
+   * in index.html. Legacy png names map to sprite ids so call sites read the
+   * same ("star-full" -> #i-star). */
+  const SPRITE_ICONS = {
+    "star-full": "star",
+    "star-empty": "star-o",
+    "heart-full": "heart",
+    "heart-empty": "heart-o",
+    "lock-closed": "lock",
+    "wrong": "x-circle",
+  };
+
+  function icon(name, size, cls) {
+    const id = SPRITE_ICONS[name] || name;
+    const svg = svgEl("svg", {
+      viewBox: "0 0 24 24",
+      "aria-hidden": "true",
+      class: "icon" + (cls ? " " + cls : ""),
+    });
+    if (size) {
+      svg.setAttribute("width", String(size));
+      svg.setAttribute("height", String(size));
+    }
+    svg.appendChild(svgEl("use", { href: "#i-" + id }));
+    return svg;
+  }
 
   const starsRow = (earned, max, animate, cls) => {
     const row = el("div", { class: (cls || "map-jnode__stars") + (animate ? " results__stars" : "") });
     for (let i = 1; i <= max; i++) {
       const isFull = i <= earned;
-      row.appendChild(el("img", {
-        src: ICONS + (isFull ? "star-full" : "star-empty") + ".png",
-        alt: "",
-        class: (animate && isFull ? "star--earn" : "") + (animate && !isFull ? " star--empty" : ""),
-      }));
+      const classes = [];
+      if (isFull) classes.push("icon--gold");
+      else classes.push("star--empty");
+      if (animate && isFull) classes.push("star--earn");
+      row.appendChild(icon(isFull ? "star-full" : "star-empty", 0, classes.join(" ")));
     }
     return row;
   };
 
-  // Returns heart <img> elements to append DIRECTLY into #hud-hearts —
+  // Returns heart icon elements to append DIRECTLY into #hud-hearts —
   // no wrapper div, so .gamebar__hearts styles apply and nothing nests.
   const heartsRow = (lives, max) => {
     const frag = document.createDocumentFragment();
     for (let i = 1; i <= max; i++) {
       const full = i <= lives;
-      frag.appendChild(el("img", {
-        src: ICONS + (full ? "heart-full" : "heart-empty") + ".png",
-        alt: full ? "Life remaining" : "Life lost",
-        class: full ? "heart--full" : "heart--empty",
-      }));
+      frag.appendChild(icon(full ? "heart-full" : "heart-empty", 22,
+        full ? "heart--full" : "heart--empty"));
     }
     return frag;
   };
@@ -311,6 +331,7 @@
     const target = $(SCREENS[name]);
     if (target) target.hidden = false;
     document.querySelector(".app").dataset.screen = name;
+    HammerCursor.sync(); // the hammer only ever lives on the gameplay screen
   }
 
   /* ------------------------------- toasts ------------------------------ */
@@ -319,7 +340,7 @@
   function toast(message, iconName) {
     const box = $("#toast");
     clearNode(box);
-    if (iconName) box.appendChild(iconImg(iconName, 26));
+    if (iconName) box.appendChild(icon(iconName, 22, "icon--gold"));
     box.appendChild(el("span", { text: message }));
     box.hidden = false;
     clearTimeout(toastTimer);
@@ -328,7 +349,7 @@
 
   /* ------------------------------- modals ------------------------------ */
 
-  const MODALS = { pause: "#modal-pause", settings: "#modal-settings", help: "#modal-help", confirm: "#modal-confirm" };
+  const MODALS = { pause: "#modal-pause", help: "#modal-help", confirm: "#modal-confirm" };
 
   function openModal(name) {
     ctx.modalStack.push(name);
@@ -355,6 +376,208 @@
     Object.values(MODALS).forEach((sel) => { $(sel).hidden = true; });
   }
 
+  /* --------------------------- hammer game cursor ----------------------
+   * The fantasy hammer is the ONLY pointer inside the whack arena on
+   * desktop: a fixed overlay <img> (pointer-events:none) that tracks the
+   * mouse in a rAF loop while .hammer-mode hides the native cursor over
+   * the whole arena — dogs, bubbles, bubble text and paddles included.
+   * Touch devices never get a floating cursor; they get the same artwork
+   * as a short-lived strike animation at the tap point. The engine stays
+   * authoritative: the hammer only animates, reactions are driven by
+   * ANSWER_SUBMITTED and never by sentence text.
+   * -------------------------------------------------------------------- */
+  const HAMMER_URL = "assets/images/ui/grammar-quest-hammer.png";
+  const HAMMER_OFFSET_X = 0.33; // strike face inside the artwork (head at the
+  const HAMMER_OFFSET_Y = 0.56; // pointer, handle extends to bottom-right)
+  const HAMMER_IMPACT_MS = 150; // swing start -> head contact (matches keyframes)
+  const HAMMER_SWING_MS = 340;  // total whack animation budget incl. recoil
+
+  const HammerCursor = (() => {
+    const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
+    let root = null;         // persistent desktop overlay (position layer)
+    let img = null;          // rotating artwork layer
+    let strike = null;       // one reusable touch strike hammer
+    let strikeImg = null;
+    let strikeTimer = 0;
+    let strikePlaying = false;
+    let raf = 0;
+    let px = 0;
+    let py = 0;              // latest pointer position (never shown at 0,0)
+    let inside = false;      // pointer currently within the arena
+    let mode = false;        // hammer-mode live (native cursor hidden)
+    let locked = false;      // reaction playing -> no new swings
+    let w = 96;
+    let h = 96;              // cached overlay size
+    let sw = 72;
+    let sh = 72;             // cached strike size
+
+    function ensure() {
+      if (root) return;
+      root = document.createElement("div");
+      root.className = "hammer-cursor";
+      root.setAttribute("aria-hidden", "true");
+      img = document.createElement("img");
+      img.className = "hammer-cursor__img";
+      img.src = HAMMER_URL;
+      img.alt = "";
+      img.draggable = false;
+      root.appendChild(img);
+      document.body.appendChild(root);
+    }
+
+    function ensureStrike() {
+      if (strike) return;
+      strike = document.createElement("div");
+      strike.className = "hammer-cursor hammer-strike";
+      strike.setAttribute("aria-hidden", "true");
+      strikeImg = document.createElement("img");
+      strikeImg.className = "hammer-cursor__img";
+      strikeImg.src = HAMMER_URL;
+      strikeImg.alt = "";
+      strikeImg.draggable = false;
+      strike.appendChild(strikeImg);
+      document.body.appendChild(strike);
+    }
+
+    function syncSize() {
+      if (root) {
+        const r = img.getBoundingClientRect();
+        if (r.width) { w = r.width; h = r.height || r.width; }
+      }
+      if (strike) {
+        const r = strikeImg.getBoundingClientRect();
+        if (r.width) { sw = r.width; sh = r.height || r.width; }
+      }
+    }
+
+    function render() {
+      raf = 0;
+      if (root && root.classList.contains("is-visible")) {
+        root.style.transform = "translate3d(" + Math.round(px - w * HAMMER_OFFSET_X) +
+          "px," + Math.round(py - h * HAMMER_OFFSET_Y) + "px,0)";
+      }
+    }
+
+    function track(x, y) {
+      px = x;
+      py = y;
+      if (!raf) raf = requestAnimationFrame(render);
+    }
+
+    function show(x, y) {
+      ensure();
+      syncSize();
+      if (x !== undefined) track(x, y);
+      root.classList.add("is-visible"); // only ever shown with valid coordinates
+      render();
+    }
+
+    function hide() {
+      if (root) root.classList.remove("is-visible");
+    }
+
+    function aim(onTarget) {
+      if (root) root.classList.toggle("is-aim", !!onTarget);
+    }
+
+    function whack() {
+      if (!mode || locked) return false;
+      ensure();
+      syncSize();
+      root.classList.remove("is-whacking");
+      void root.offsetWidth; // restart the keyframes on rapid swings
+      root.classList.add("is-whacking", "is-locked");
+      locked = true;
+      setTimeout(() => {
+        if (root) root.classList.remove("is-whacking");
+      }, HAMMER_SWING_MS);
+      return true;
+    }
+
+    function strikeAt(x, y) {
+      ensureStrike();
+      syncSize();
+      clearTimeout(strikeTimer);
+      strike.style.transform = "translate3d(" + Math.round(x - sw * HAMMER_OFFSET_X) +
+        "px," + Math.round(y - sh * HAMMER_OFFSET_Y) + "px,0)";
+      strike.classList.remove("is-striking");
+      void strike.offsetWidth;
+      strike.classList.add("is-visible", "is-striking");
+      strikePlaying = true;
+      strikeTimer = setTimeout(() => {
+        strike.classList.remove("is-visible", "is-striking");
+        strikePlaying = false;
+      }, HAMMER_SWING_MS);
+    }
+
+    // Reveal engine reactions exactly when the hammer head lands; callers
+    // pass the reaction work and this schedules it at the impact frame.
+    function impact(fn) {
+      if ((mode && inside) || strikePlaying) setTimeout(fn, HAMMER_IMPACT_MS);
+      else fn();
+    }
+
+    // New wave ready: unlock swings and re-arm cursor hiding if the game
+    // is in an interactive state (not paused / feedback / modal / results).
+    function arm() {
+      locked = false;
+      if (root) root.classList.remove("is-locked", "is-whacking", "is-aim");
+      sync();
+    }
+
+    function sync() {
+      const arena = document.getElementById("whack");
+      if (!arena) return;
+      const ok = ctx.screen === "game" && engine.status === "playing" &&
+        !!ctx.question && $("#feedback").hidden && ctx.modalStack.length === 0;
+      mode = ok && finePointer.matches;
+      arena.classList.toggle("hammer-mode", mode);
+      if (!mode) hide();
+      else if (inside) show(px, py); // pointer never left between waves
+    }
+
+    function bindArena() {
+      const arena = document.getElementById("whack");
+      if (!arena) return;
+      const overDefaultCursor = (t) =>
+        !!(t && t.closest && t.closest(".use-default-cursor"));
+
+      arena.addEventListener("pointerenter", (e) => {
+        if (e.pointerType === "touch") return;
+        inside = true;
+        if (mode && !overDefaultCursor(e.target)) show(e.clientX, e.clientY);
+      });
+      arena.addEventListener("pointermove", (e) => {
+        if (e.pointerType === "touch") return;
+        inside = true;
+        // keep coordinates fresh even while hammer-mode is momentarily off
+        // (feedback card up, paused) so re-arming never flashes an old spot
+        track(e.clientX, e.clientY);
+        if (!mode || !root) return;
+        // pause pill / other real controls keep the native cursor
+        const overChrome = overDefaultCursor(e.target);
+        root.classList.toggle("is-visible", !overChrome);
+        if (overChrome) return;
+        aim(!!(e.target.closest && e.target.closest(".mole, .paddle")));
+      });
+      arena.addEventListener("pointerleave", (e) => {
+        if (e.pointerType === "touch") return;
+        inside = false;
+        hide();
+        aim(false);
+      });
+      arena.addEventListener("pointerdown", (e) => {
+        if (!ctx.question || ctx.questionLocked) return;
+        const target = e.target.closest ? e.target.closest(".mole, .paddle") : null;
+        if (!target) return;
+        if (e.pointerType === "touch" || !finePointer.matches) strikeAt(e.clientX, e.clientY);
+        else if (mode) whack();
+      });
+    }
+
+    return { bindArena, sync, arm, impact, hide };
+  })();
+
   /* =============================== HOME =============================== */
 
   function renderHome() {
@@ -366,28 +589,29 @@
     const started = overall.completedChallenges > 0;
     if (started) {
       stats.appendChild(el("li", { class: "stat-chip" }, [
+        icon("trophy", 20, "icon--gold"),
         el("span", { text: "Level " + (next ? next.levelId : overall.totalLevels) }),
       ]));
       stats.appendChild(el("li", { class: "stat-chip" }, [
-        iconImg("star-full", 20),
+        icon("star-full", 20, "icon--gold"),
         el("span", { class: "stat-chip__value", text: overall.totalStars + " stars" }),
       ]));
       stats.appendChild(el("li", { class: "stat-chip" }, [
+        icon("list-checks", 20),
         el("span", { text: overall.completedChallenges + "/" + overall.totalChallenges + " challenges" }),
       ]));
     } else {
       stats.appendChild(el("li", { class: "stat-chip" }, [
-        iconImg("trophy", 20),
+        icon("trophy", 20, "icon--gold"),
         el("span", { text: overall.totalChallenges + " challenges await" }),
       ]));
       stats.appendChild(el("li", { class: "stat-chip" }, [
-        iconImg("star-full", 20),
+        icon("star-full", 20, "icon--gold"),
         el("span", { text: "Up to " + overall.maxTotalStars + " stars" }),
       ]));
     }
 
-    const continueBtn = $("#home-continue");
-    continueBtn.textContent = started ? "Continue" : "Start Adventure";
+    $("#home-continue-label").textContent = started ? "Continue" : "Start Adventure";
     showScreen("home");
   }
 
@@ -653,7 +877,7 @@
     const newly = !!level && level.unlocked && !ctx.seenJourneyKeys.has(String(level.id));
 
     const disc = el("span", { class: "map-jnode__disc" }, [
-      locked ? iconImg("lock-closed", 34) : el("span", { text: String(level.id) }),
+      locked ? icon("lock-closed", 34) : el("span", { text: String(level.id) }),
     ]);
 
     const kids = [disc];
@@ -787,9 +1011,9 @@
         el("div", { class: "challenge-card__top" }, [
           el("span", { class: "challenge-card__num", text: "Challenge " + challenge.id }),
           el("span", { class: "challenge-card__badge" }, [
-            !challenge.unlocked ? iconImg("lock-closed", 26)
-              : challenge.completed ? iconImg("star-full", 26)
-              : isFinal ? iconImg("trophy", 26) : null,
+            !challenge.unlocked ? icon("lock-closed", 26)
+              : challenge.completed ? icon("star-full", 26, "icon--gold")
+              : isFinal ? icon("trophy", 26, "icon--gold") : null,
           ]),
         ]),
         el("h3", { class: "challenge-card__title", text: challenge.title }),
@@ -828,33 +1052,25 @@
     ctx.levelId = levelId;
     ctx.challengeId = challengeId;
 
-    $("#intro-level-title").textContent = "Level " + levelId + " · " + meta.levelTitle;
-    $("#intro-kicker").textContent = "Challenge " + challengeId + (meta.difficulty ? " · " + meta.difficulty : "");
+    $("#intro-level-title").textContent = "Level " + levelId + " • " + meta.levelTitle;
+    $("#intro-kicker").textContent = "Challenge " + challengeId + (meta.difficulty ? " • " + meta.difficulty : "");
     $("#intro-title").textContent = meta.title;
     $("#intro-instruction").textContent = INTRO_COPY[meta.type] || INTRO_COPY.default;
 
+    // premium HUD pills: glass chips with color-tinted sprite icons
     const chips = $("#intro-chips");
     clearNode(chips);
-    chips.appendChild(el("li", { class: "stat-chip" }, [
-      iconImg("timer", 20),
-      el("span", { text: meta.settings.timeLimitSeconds ? fmtTime(meta.settings.timeLimitSeconds) : "No timer" }),
+    const chip = (cls, iconName, text) => chips.appendChild(el("li", { class: "intro-chip " + cls }, [
+      icon(iconName, 19),
+      el("span", { text }),
     ]));
-    chips.appendChild(el("li", { class: "stat-chip" }, [
-      iconImg("heart-full", 20),
-      el("span", { text: meta.settings.lives + " lives" }),
-    ]));
-    chips.appendChild(el("li", { class: "stat-chip" }, [
-      iconImg("star-full", 20),
-      el("span", { text: "Pass " + meta.settings.passingPercentage + "%" }),
-    ]));
-    chips.appendChild(el("li", { class: "stat-chip" }, [
-      iconImg("trophy", 20),
-      el("span", { text: meta.effectiveQuestionCount + " questions" }),
-    ]));
+    chip("intro-chip--time", "timer",
+      meta.settings.timeLimitSeconds ? fmtTime(meta.settings.timeLimitSeconds) : "No timer");
+    chip("intro-chip--lives", "heart", meta.settings.lives + " lives");
+    chip("intro-chip--pass", "star", "Pass " + meta.settings.passingPercentage + "%");
+    chip("intro-chip--count", "trophy", meta.effectiveQuestionCount + " questions");
 
-    const mascot = meta.difficulty === "hard" || /final/i.test(meta.title || "") ? "dragon"
-      : meta.difficulty === "medium" ? "fox" : "owl";
-    $("#intro-mascot").src = MASCOTS + mascot + ".png";
+    // The intro mascot is the fixed Prairie Dog brand hero — no per-difficulty swap.
 
     showScreen("intro");
   }
@@ -1022,6 +1238,9 @@
     }
 
     setProgress(payload.answeredCount, payload.totalQuestions, payload.questionNumber);
+
+    // New wave is live: the hammer may swing again.
+    HammerCursor.arm();
   }
 
   /* ----- Sentence waves (UI-layer grouping; engine validates answers) -----
@@ -1246,9 +1465,16 @@
         style: "animation-delay:" + (140 + delay) + "ms",
       }),
     ]);
+    // start the idle breathing once the pop-up finishes (rise = 340ms + delay)
+    setTimeout(() => {
+      if (mole.isConnected && !mole.classList.contains("is-hit")) mole.classList.add("is-idle");
+    }, (delay || 0) + 400);
     mole.addEventListener("click", () => {
       if (ctx.questionLocked) return;
-      mole.classList.add("is-hit");
+      mole.classList.remove("is-idle");
+      // No visual state here: the reaction (is-hit + Prairie Dog art) is
+      // revealed by markAnswer() at the hammer's impact frame, so the swing
+      // decides the timing and the engine decides everything else.
       options.onTap();
     });
     return mole;
@@ -1323,7 +1549,7 @@
     $("#feedback-detail").textContent = "";
 
     card.classList.add(feedback.correct ? "is-correct" : "is-wrong");
-    $("#feedback-icon").src = ICONS + (feedback.correct ? "star-full" : "wrong") + ".png";
+    $("#feedback-icon-use").setAttribute("href", feedback.correct ? "#i-check-circle" : "#i-x-circle");
     $("#feedback-title").textContent = feedback.correct ? "Correct!" : "Not quite";
 
     const detail = $("#feedback-detail");
@@ -1408,8 +1634,8 @@
     if (result.passed) {
       Sound.play("complete");
       const medal = result.stars >= 3 ? "medal-3" : result.stars === 2 ? "medal-2" : "medal-1";
-      body.appendChild(el(div, { class: results__celebrate }, [
-        el(img, { src: PRAIRIE_DOG_ASSETS.correct.celebrate, alt:  }),
+      body.appendChild(el("div", { class: "results__celebrate" }, [
+        el("img", { src: PRAIRIE_DOG_ASSETS.correct.celebrate, alt: "" }),
       ]));
       body.appendChild(el("div", { class: "results__medal" }, [
         el("img", { src: REWARDS + medal + ".png", alt: result.stars + " star medal" }),
@@ -1574,7 +1800,7 @@
           : (level ? level.title : ""),
     }));
     body.appendChild(el("div", { class: "level-complete__chest" }, [
-      el("img", { src: fullGame ? MASCOTS + "owl.png" : REWARDS + "chest.png", alt: "" }),
+      el("img", { src: fullGame ? PRAIRIE_DOG_ASSETS.correct.celebrate : REWARDS + "chest.png", alt: "" }),
     ]));
 
     const stats = el("div", { class: "level-complete__stats" });
@@ -1633,13 +1859,19 @@
 
     engine.on(E.ANSWER_SUBMITTED, (feedback) => {
       ctx.questionLocked = true;
-      markAnswer(feedback);
-      showFeedback(feedback);
-      Sound.play(feedback.correct ? "correct" : "wrong");
-      if (feedback.pointsAwarded > 0) popupScore("+" + feedback.pointsAwarded, feedback.correct);
-      if (!feedback.correct) popupScore("−1 ♥", false, true);
-      const delay = feedback.correct ? FEEDBACK_DELAY.correct : FEEDBACK_DELAY.wrong;
-      engine.advanceQuestion(delay);
+      // Reveal everything at the hammer's impact frame so the dog reacts
+      // exactly as the head lands (immediate when no swing is playing,
+      // e.g. keyboard-submitted fallback paddles).
+      HammerCursor.impact(() => {
+        markAnswer(feedback);
+        showFeedback(feedback);
+        Sound.play(feedback.correct ? "correct" : "wrong");
+        if (feedback.pointsAwarded > 0) popupScore("+" + feedback.pointsAwarded, feedback.correct);
+        if (!feedback.correct) popupScore("−1 ♥", false, true);
+        const delay = feedback.correct ? FEEDBACK_DELAY.correct : FEEDBACK_DELAY.wrong;
+        engine.advanceQuestion(delay);
+        HammerCursor.sync(); // feedback card is up: back to a normal cursor
+      });
     });
 
     engine.on(E.SCORE_CHANGED, (payload) => {
@@ -1672,14 +1904,13 @@
       hearts.classList.toggle("is-low", payload.lives === 1);
       if (payload.lost) {
         // the heart just after the remaining ones is the one that was lost
-        const lostImg = hearts.children[payload.lives];
-        if (lostImg) {
-          lostImg.classList.remove("heart--empty");
-          lostImg.src = ICONS + "heart-full.png";
-          lostImg.classList.add("heart--lost");
+        const lostHeart = hearts.children[payload.lives];
+        if (lostHeart) {
+          lostHeart.classList.remove("heart--empty");
+          lostHeart.classList.add("heart--full", "heart--lost");
           setTimeout(() => {
-            lostImg.src = ICONS + "heart-empty.png";
-            lostImg.classList.add("heart--empty");
+            lostHeart.classList.remove("heart--full", "heart--lost");
+            lostHeart.classList.add("heart--empty");
           }, 420);
         }
       }
@@ -1693,12 +1924,15 @@
     engine.on(E.TIMER_LOW, () => Sound.play("timer-low"));
 
     engine.on(E.PAUSED, () => {
+      HammerCursor.sync(); // paused: back to a normal cursor over the arena
       if (ctx.screen === "game" && ctx.modalStack[ctx.modalStack.length - 1] !== "pause") {
         openModal("pause");
       }
     });
 
-    engine.on(E.RESUMED, () => { /* HUD already reflects ticks */ });
+    engine.on(E.RESUMED, () => {
+      HammerCursor.sync(); // HUD already reflects ticks; re-arm the hammer
+    });
 
     engine.on(E.CHALLENGE_UNLOCKED, (payload) => {
       Sound.play("unlock");
@@ -1767,6 +2001,15 @@
   /* ----------------------------- DOM wiring ---------------------------- */
 
   function wireDom() {
+    // Real-controls island inside the whack arena: these keep the native
+    // cursor and hide the hammer overlay while hovered.
+    const pausePill = $("#hud-pause");
+    if (pausePill) pausePill.classList.add("use-default-cursor");
+    const feedbackCard = $("#feedback");
+    if (feedbackCard) feedbackCard.classList.add("use-default-cursor");
+
+    HammerCursor.bindArena();
+
     $("#home-continue").addEventListener("click", () => {
       Sound.play("click");
       const next = engine.getNextUnlockedActivity();
@@ -1811,16 +2054,11 @@
       closeAllModals();
       engine.retryChallenge();
     });
-    $("#pause-settings").addEventListener("click", () => openModal("settings"));
     $("#pause-exit").addEventListener("click", () => {
       closeAllModals();
       engine.abortChallenge();
     });
 
-    $("#settings-close").addEventListener("click", () => {
-      closeModal();
-    });
-    $("#home-settings").addEventListener("click", () => openModal("settings"));
     $("#home-help").addEventListener("click", () => openModal("help"));
     $("#help-close").addEventListener("click", closeModal);
 
@@ -1836,25 +2074,6 @@
       });
     }
 
-    const soundSwitch = $("#setting-sound");
-    if (soundSwitch) {
-      soundSwitch.addEventListener("click", () => {
-        uiSettings.sound = !uiSettings.sound;
-        saveSettings();
-        syncSettingsModal();
-      });
-    }
-    $("#setting-anim").addEventListener("click", () => {
-      uiSettings.animations = !uiSettings.animations;
-      saveSettings();
-      applyMotionPreference();
-      syncSettingsModal();
-    });
-
-    $("#settings-reset").addEventListener("click", () => {
-      $("#confirm-text").textContent = "This clears all stars, scores and unlocked levels on this device.";
-      openModal("confirm");
-    });
     $("#confirm-cancel").addEventListener("click", closeModal);
     $("#confirm-ok").addEventListener("click", () => {
       closeAllModals();
@@ -1890,16 +2109,8 @@
   }
 
   function syncSoundIcon() {
-    const icon = $("#home-sound img");
-    if (icon) icon.src = ICONS + (uiSettings.sound ? "sound-on" : "sound-off") + ".png";
-  }
-
-  function syncSettingsModal() {
-    const soundSwitch = $("#setting-sound");
-    if (soundSwitch) soundSwitch.setAttribute("aria-checked", String(uiSettings.sound));
-    const animSwitch = $("#setting-anim");
-    if (animSwitch) animSwitch.setAttribute("aria-checked", String(uiSettings.animations));
-    syncSoundIcon();
+    // Sound controls live with the platform, not in-game; kept as a no-op so
+    // existing call sites stay valid if a toggle ever returns.
   }
 
   function onKeydown(event) {
@@ -1980,7 +2191,8 @@
     Object.values(PRAIRIE_DOG_ASSETS.neutral)
       .concat(Object.values(PRAIRIE_DOG_ASSETS.correct))
       .concat(Object.values(PRAIRIE_DOG_ASSETS.wrong))
-      .concat([ICONS + 'heart-full.png', ICONS + 'heart-empty.png', ICONS + 'star-full.png', ICONS + 'timer.png'])
+      .concat([HAMMER_URL, // ready before the first hover / first whack
+               'assets/images/mascots/prairie-dog-hero.png']) // intro hero
       .forEach((src) => { const img = new Image(); img.src = src; });
   }
 
@@ -2027,7 +2239,6 @@
   document.addEventListener("DOMContentLoaded", () => {
     applyMotionPreference();
     syncSoundIcon();
-    syncSettingsModal();
     wireEngine();
     wireDom();
     preload();
