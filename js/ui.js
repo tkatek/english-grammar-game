@@ -14,24 +14,66 @@
 
   /* ----------------------------- constants ----------------------------- */
 
-  // Hole anchor positions on the gameplay background (percent of field),
-  // detected from the painted artwork: two rows of three holes.
-  const SLOTS_DESKTOP = [
-    { x: 28.4, y: 49.4 }, { x: 49.7, y: 49.4 }, { x: 71.1, y: 49.4 },
-    { x: 32.0, y: 67.0 }, { x: 53.8, y: 67.0 }, { x: 75.7, y: 67.0 },
-  ];
-  // Narrow fields re-grid the targets instead of cramming six desktop holes.
-  const FIELD_MOBILE_BREAK = 620;
+  // Hole grid on the whack field (percent of the yard).
+  // Desktop coordinates map onto the six holes painted in the supplied
+  // gameplay artwork (detected from the image: top row ~49% height,
+  // bottom row ~67%); unused painted holes stay empty for breathing room.
+  // Mobile uses its own responsive grid (3 up top + 1 below) so targets
+  // never crowd a narrow screen.
+  const HOLE_LAYOUTS = {
+    desktop: [
+      { x: 28.4, y: 49.4, row: "top" }, { x: 49.7, y: 49.4, row: "top" }, { x: 71.1, y: 49.4, row: "top" },
+      { x: 32.0, y: 67.0, row: "bottom" }, { x: 53.8, y: 67.0, row: "bottom" }, { x: 75.7, y: 67.0, row: "bottom" },
+    ],
+    mobile: [
+      { x: 25, y: 50, row: "top" }, { x: 50, y: 50, row: "top" }, { x: 75, y: 50, row: "top" },
+      { x: 50, y: 80, row: "bottom" },
+    ],
+  };
+  const MOLE_CAST = ["owl", "fox", "dragon", "book"];
+  const YARD_MOBILE_BREAK = 620;
 
-  // Node positions on the painted island map (percent of map canvas).
-  const MAP_PATH = [
-    { x: 14, y: 24 }, { x: 38, y: 17 }, { x: 62, y: 10 }, { x: 84, y: 24 },
-    { x: 70, y: 42 }, { x: 46, y: 40 }, { x: 18, y: 45 }, { x: 10, y: 68 },
-    { x: 35, y: 74 }, { x: 58, y: 60 }, { x: 80, y: 74 }, { x: 52, y: 90 },
-    { x: 14, y: 88 },
-  ];
+  // The Adventure Map is built on the vertical fantasy artwork
+  // (assets/images/bg-map-journey.webp|jpg, 941x1672). The canvas always
+  // keeps the artwork's aspect, so the painting is never stretched; nodes,
+  // locks, stars and labels stay real DOM elements layered on top.
+  const MAP_ART_W = 941;
+  const MAP_ART_H = 1672;
+  const MAP_ART_ASPECT = MAP_ART_H / MAP_ART_W;
 
-  const FEEDBACK_DELAY = { correct: 2400, wrong: 4200 };
+  // Island landing spots in the artwork, bottom -> top, as % of the canvas —
+  // calibrated against the painting's actual terrain (sampled pixel bands):
+  // the lush left foreground island, the wide earthen island, the waterfall
+  // island, a small green ledge, the stone-and-green island, and the castle.
+  // Index 0 is the hero / current level; the trail's stub ends at the castle.
+  const MAP_ANCHORS = [
+    { x: 21, y: 86.5 },   // foreground island (hero / current level)
+    { x: 39, y: 72.5 },   // wide earthen island
+    { x: 19, y: 59 },     // island with the waterfall
+    { x: 28, y: 50 },     // small green island
+    { x: 46, y: 39.5 },   // stone-and-green island
+    { x: 66, y: 28.5 },   // castle island — the destination
+  ];
+  const MAP_CASTLE = { x: 66, y: 24 }; // where the trail stub fades out
+
+  // When more levels load than the artwork has islands, the canvas grows and
+  // nodes continue on evenly spaced rows through the middle band.
+  const MAP_OVERFLOW_LANES = [50, 40, 60, 38, 62, 42, 58, 36, 64, 44, 56, 46, 54];
+  const MAP_OVERFLOW_ROW = 150;
+  const MAP_OVERFLOW_TOP = 170;
+  const MAP_OVERFLOW_BOTTOM = 118;
+  const MAP_SOON_MAX = 3; // locked "on the way" islands above loaded levels
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs) {
+    const node = document.createElementNS(SVG_NS, tag);
+    if (attrs) {
+      for (const key of Object.keys(attrs)) node.setAttribute(key, attrs[key]);
+    }
+    return node;
+  }
+
+  const FEEDBACK_DELAY = { correct: 1700, wrong: 3800 };
   const STREAK_MILESTONES = [3, 5, 10];
   const SETTINGS_KEY = "grammar-quest:ui-settings:v1";
   const SOUND_NAMES = ["correct", "wrong", "streak", "timer-low", "complete", "unlock", "click"];
@@ -75,8 +117,8 @@
   const iconImg = (name, size, alt) =>
     el("img", { src: ICONS + name + ".png", alt: alt || "", width: size, height: size, loading: "lazy" });
 
-  const starsRow = (earned, max, animate) => {
-    const row = el("div", { class: "map-node__stars" + (animate ? " results__stars" : "") });
+  const starsRow = (earned, max, animate, cls) => {
+    const row = el("div", { class: (cls || "map-jnode__stars") + (animate ? " results__stars" : "") });
     for (let i = 1; i <= max; i++) {
       const isFull = i <= earned;
       row.appendChild(el("img", {
@@ -119,7 +161,8 @@
     modalStack: [],
     layoutMobile: false,
     resizeTimer: null,
-    mapScrollTarget: null,
+    mapRenderWidth: 0,        // last width the map was laid out for
+    seenJourneyKeys: new Set(), // level ids already shown unlocked (pop anim)
   };
 
   const uiSettings = loadSettings();
@@ -214,7 +257,13 @@
 
   function closeModal() {
     const name = ctx.modalStack.pop();
-    if (!ctx.modalStack.length) $("#modal-root").hidden = true;
+    if (ctx.modalStack.length) {
+      // restore the modal that was underneath (e.g. settings opened from pause)
+      Object.values(MODALS).forEach((sel) => { $(sel).hidden = true; });
+      $(MODALS[ctx.modalStack[ctx.modalStack.length - 1]]).hidden = false;
+    } else {
+      $("#modal-root").hidden = true;
+    }
     return name;
   }
 
@@ -265,85 +314,191 @@
   function renderMap() {
     const overall = engine.getOverallProgress();
     $("#map-stars span").textContent = String(overall.totalStars);
+    ctx.mapRenderWidth = window.innerWidth;
     const canvas = $("#map-canvas");
     clearNode(canvas);
-
-    const levels = engine.getLevels();
-    const next = engine.getNextUnlockedActivity();
-    const info = engine.getGameInfo();
-    const nodeCount = levels.length + (info.declaredTotalLevels > levels.length ? 1 : 0);
-
-    levels.forEach((level, index) => {
-      const pos = MAP_PATH[index % MAP_PATH.length];
-      const progress = engine.getLevelProgress(level.id);
-      const isCurrent = !!next && next.levelId === level.id;
-      const perfect = progress.completed && progress.stars >= progress.maxStars && progress.maxStars > 0;
-
-      let state = "map-node--unlocked";
-      if (!level.unlocked) state = "map-node--locked";
-      else if (perfect) state = "map-node--perfect";
-      else if (progress.completed) state = "map-node--completed";
-      else if (isCurrent) state = "map-node--current";
-
-      const disc = el("div", { class: "map-node__disc", role: "button", tabindex: level.unlocked ? 0 : -1 });
-      if (!level.unlocked) {
-        disc.appendChild(iconImg("lock-closed", 34));
-      } else {
-        disc.appendChild(el("span", { text: String(level.id) }));
-      }
-
-      const node = el("button", {
-        class: "map-node " + state,
-        style: "left:" + pos.x + "%; top:" + pos.y + "%",
-        "aria-label": level.unlocked
-          ? "Level " + level.id + ": " + level.title + (progress.completed ? " (completed)" : "")
-          : "Level " + level.id + " locked",
-        onclick: () => {
-          if (!level.unlocked) { toast("Pass the previous level to unlock this island", "lock-closed"); return; }
-          Sound.play("click");
-          openLevel(level.id);
-        },
-      }, [
-        disc,
-        progress.completed ? starsRow(progress.stars, progress.maxStars, false) : null,
-        el("span", { class: "map-node__label", text: level.unlocked ? level.title : "Locked" }),
-      ]);
-      canvas.appendChild(node);
-      if (isCurrent) ctx.mapScrollTarget = node;
-    });
-
-    if (nodeCount > levels.length) {
-      const pos = MAP_PATH[levels.length % MAP_PATH.length];
-      canvas.appendChild(el("div", {
-        class: "map-node map-node--locked",
-        style: "left:" + pos.x + "%; top:" + pos.y + "%",
-      }, [
-        el("div", { class: "map-node__disc" }, [iconImg("lock-closed", 34)]),
-        el("span", { class: "map-node__label", text: "Coming soon" }),
-      ]));
-    }
-
-    canvas.appendChild(el("div", { class: "map-legend" }, [
-      el("span", { text: "★ Stars per level" }),
-    ]));
-
-    showScreen("map");
-    requestAnimationFrame(() => sizeMapCanvas());
+    canvas.classList.remove("map-canvas--journey");
+    canvas.style.height = "";
+    canvas.style.width = "";
+    renderJourneyMap(canvas);
   }
 
-  // On portrait screens the painted map keeps its island aspect and scrolls
-  // horizontally so nodes never shrink to pinpoints; wide screens fit fully.
-  function sizeMapCanvas() {
-    const canvas = $("#map-canvas");
-    const viewport = canvas.parentElement;
-    if (!canvas || !viewport) return;
-    const fullWidth = viewport.clientHeight * (1672 / 941);
-    const wide = Math.max(viewport.clientWidth, Math.min(fullWidth, viewport.clientWidth * 1.6));
-    canvas.style.width = wide > viewport.clientWidth ? Math.round(wide) + "px" : "100%";
-    if (ctx.mapScrollTarget && wide > viewport.clientWidth) {
-      ctx.mapScrollTarget.scrollIntoView({ inline: "center", block: "center", behavior: "auto" });
-      ctx.mapScrollTarget = null;
+  /* ----- The vertical journey over the fantasy artwork ------------------
+   * One layout for every screen size: a tall climb from the foreground
+   * island (bottom) to the castle (top). Level 1 / the current level owns
+   * the big foreground island; future levels alternate up the artwork's
+   * island column. All values come from the engine (levels, progress,
+   * unlocks) — nothing about progression is baked into the artwork.
+   * -------------------------------------------------------------------- */
+
+  function renderJourneyMap(canvas) {
+    const levels = engine.getLevels();
+    const info = engine.getGameInfo();
+    const next = engine.getNextUnlockedActivity();
+
+    // Real levels first, then a few locked "on the way" islands when the game
+    // declares more levels than it currently ships.
+    const entries = levels.map((level, i) => ({ kind: "level", level, i }));
+    const soonCount = Math.max(0, Math.min(MAP_SOON_MAX, (info.declaredTotalLevels || 0) - levels.length));
+    for (let p = 0; p < soonCount; p++) {
+      entries.push({ kind: "soon", i: levels.length + p, firstSoon: p === 0 });
     }
+
+    entries.forEach((entry) => {
+      if (entry.kind !== "level") return;
+      const level = entry.level;
+      const progress = engine.getLevelProgress(level.id);
+      entry.progress = progress;
+      entry.isCurrent = !!next && next.levelId === level.id;
+      entry.perfect = progress.completed && progress.stars >= progress.maxStars && progress.maxStars > 0;
+      entry.rating = progress.completed
+        ? Math.max(1, Math.round((progress.stars / Math.max(1, progress.maxStars)) * 3))
+        : 0;
+    });
+
+    // Show the screen first so the canvas has a real width to measure, then
+    // lay out synchronously (reading clientWidth forces layout — no rAF hop,
+    // which would stall in background tabs and leave the map hidden).
+    showScreen("map");
+
+    const width = canvas.clientWidth || 360;
+    const artHeight = Math.round(width * MAP_ART_ASPECT);
+
+    let height;
+    if (entries.length <= MAP_ANCHORS.length) {
+      // Nodes sit on the artwork's islands; the canvas IS the artwork.
+      height = artHeight;
+      entries.forEach((entry) => {
+        const a = MAP_ANCHORS[entry.i];
+        entry.laneX = a.x / 100;
+        entry.y = (a.y / 100) * height;
+      });
+    } else {
+      // More levels than islands: extend the climb beyond the artwork's
+      // natural bands (background-size: cover crops in from the sides).
+      height = Math.max(
+        artHeight,
+        MAP_OVERFLOW_TOP + MAP_OVERFLOW_BOTTOM + (entries.length - 1) * MAP_OVERFLOW_ROW
+      );
+      entries.forEach((entry) => {
+        entry.laneX = MAP_OVERFLOW_LANES[entry.i % MAP_OVERFLOW_LANES.length] / 100;
+        entry.y = height - MAP_OVERFLOW_BOTTOM - entry.i * MAP_OVERFLOW_ROW;
+      });
+    }
+
+    canvas.classList.add("map-canvas--journey", "is-positioning");
+    canvas.style.height = height + "px";
+
+    entries.forEach((entry) => {
+      canvas.appendChild(buildJourneyNode(entry));
+    });
+    ctx.seenJourneyKeys.clear();
+    entries.forEach((entry) => {
+      if (entry.kind === "level" && entry.level.unlocked) {
+        ctx.seenJourneyKeys.add(String(entry.level.id));
+      }
+    });
+
+    drawJourneyPath(canvas, entries, height);
+    canvas.classList.remove("is-positioning");
+
+    // Where to park the view: the learner's current island (or the top of
+    // their climb when everything is done), kept in the lower-middle.
+    let focusY = null;
+    const current = entries.find((e) => e.kind === "level" && e.isCurrent);
+    if (current) focusY = current.y;
+    else {
+      const lastLevel = [...entries].reverse().find((e) => e.kind === "level");
+      if (lastLevel) focusY = lastLevel.y;
+      else if (entries.length) focusY = entries[entries.length - 1].y;
+    }
+    const viewport = canvas.parentElement;
+    if (focusY != null && viewport) {
+      const vh = viewport.clientHeight;
+      viewport.scrollTop = Math.max(0, Math.min(focusY - vh * 0.62, viewport.scrollHeight - vh));
+    }
+  }
+
+  function buildJourneyNode(entry) {
+    const level = entry.kind === "level" ? entry.level : null;
+    const locked = !level || !level.unlocked;
+
+    let state;
+    let label;
+    let aria;
+    if (!level) {
+      state = "map-jnode--soon";
+      label = entry.firstSoon ? "Coming soon" : ""; // only once, not everywhere
+      aria = "Future level, coming soon";
+    } else {
+      state = !level.unlocked ? "map-jnode--locked"
+        : entry.perfect ? "map-jnode--perfect"
+        : entry.progress.completed ? "map-jnode--completed"
+        : entry.isCurrent ? "map-jnode--current"
+        : "map-jnode--unlocked";
+      label = level.title;
+      aria = level.unlocked
+        ? "Level " + level.id + ": " + level.title + (entry.progress.completed ? " (completed)" : "")
+        : "Level " + level.id + " locked";
+    }
+
+    // A small one-time pop the first time an island shows up unlocked.
+    const newly = !!level && level.unlocked && !ctx.seenJourneyKeys.has(String(level.id));
+
+    const disc = el("span", { class: "map-jnode__disc" }, [
+      locked ? iconImg("lock-closed", 34) : el("span", { text: String(level.id) }),
+    ]);
+
+    const kids = [disc];
+    if (level && entry.progress.completed) kids.push(starsRow(entry.rating, 3, false, "map-jnode__stars"));
+    if (label) kids.push(el("span", { class: "map-jnode__label", text: label }));
+
+    return el("button", {
+      class: "map-jnode " + state + (newly ? " map-jnode--newly" : ""),
+      style: "left:" + Math.round(entry.laneX * 100) + "%; top:" + entry.y + "px",
+      "aria-label": aria,
+      onclick: () => {
+        if (!level) return; // "coming soon" islands are quiet placeholders
+        if (!level.unlocked) { toast("Pass the previous level to unlock this island", "lock-closed"); return; }
+        Sound.play("click");
+        openLevel(level.id);
+      },
+    }, kids);
+  }
+
+  // Dotted, softly glowing trail linking the islands (nodes render on top of
+  // the SVG, so the dots visually end at each disc edge). A short stub fades
+  // out towards the castle at the top of the artwork.
+  function drawJourneyPath(canvas, entries, height) {
+    const W = canvas.clientWidth || 360;
+    const f = (n) => Math.round(n * 10) / 10;
+    const pts = entries.map((e) => ({ x: e.laneX * W, y: e.y }));
+    const last = pts[pts.length - 1];
+
+    const svg = svgEl("svg", {
+      class: "map-path",
+      viewBox: "0 0 " + Math.round(W) + " " + height,
+      preserveAspectRatio: "none",
+      "aria-hidden": "true",
+    });
+    svg.appendChild(svgEl("path", {
+      class: "map-path__stub",
+      d: "M" + f(last.x) + " " + f(last.y - 46)
+        + " Q " + f(last.x) + " " + f((last.y + MAP_CASTLE.y * height / 100) / 2)
+        + " " + f(MAP_CASTLE.x / 100 * W) + " " + f(MAP_CASTLE.y / 100 * height),
+    }));
+    if (pts.length > 1) {
+      let d = "M" + f(pts[0].x) + " " + f(pts[0].y);
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1];
+        const b = pts[i];
+        const k = (a.y - b.y) * 0.55; // curve scaled to the actual island gap
+        d += " C " + f(a.x) + " " + f(a.y - k) + ", " + f(b.x) + " " + f(b.y + k) + ", " + f(b.x) + " " + f(b.y);
+      }
+      svg.appendChild(svgEl("path", { class: "map-path__glow", d }));
+      svg.appendChild(svgEl("path", { class: "map-path__dash", d }));
+    }
+    canvas.insertBefore(svg, canvas.firstChild);
   }
 
   /* ============================ LEVEL DETAIL =========================== */
@@ -395,7 +550,7 @@
         ]),
         el("h3", { class: "challenge-card__title", text: challenge.title }),
         meta,
-        challenge.completed ? starsRow(challenge.highestStars, 3, false) : null,
+        challenge.completed ? starsRow(challenge.highestStars, 3, false, "challenge-card__stars") : null,
         challenge.unlocked ? el("button", {
           class: "challenge-card__start",
           text: challenge.completed ? "Replay" : isFinal ? "Start Final Test" : "Start",
@@ -462,10 +617,23 @@
 
   /* ============================== GAMEPLAY ============================= */
 
-  function fieldTier() {
-    const field = $("#field");
-    ctx.layoutMobile = field.clientWidth > 0 && field.clientWidth < FIELD_MOBILE_BREAK;
-    return ctx.layoutMobile ? "mobile" : "desktop";
+  function yardTier() {
+    const yard = $("#yard");
+    return yard && yard.clientWidth > 0 && yard.clientWidth < YARD_MOBILE_BREAK ? "mobile" : "desktop";
+  }
+
+  function shuffleList(list) {
+    const arr = list.slice();
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function nextMascot() {
+    ctx.moleIndex = ((ctx.moleIndex || 0) + 1) % MOLE_CAST.length;
+    return MOLE_CAST[ctx.moleIndex];
   }
 
   function setupGameScreen(payload) {
@@ -474,9 +642,11 @@
     ctx.pendingResult = null;
     ctx.question = null;
     ctx.questionLocked = false;
+    ctx.lastHoleKey = null;
 
     $("#hud-level").textContent = "Level " + payload.levelId;
-    $("#hud-challenge").textContent = payload.challengeTitle;
+    $("#hud-challenge").textContent = payload.levelTitle || payload.challengeTitle;
+    $("#hud-finaltag").hidden = !(payload.challengeType === "mixed" || /final/i.test(payload.challengeTitle || ""));
     $("#hud-timer-wrap").hidden = !payload.settings.timeLimitSeconds;
     $("#hud-timer").textContent = payload.settings.timeLimitSeconds ? fmtTime(payload.settings.timeLimitSeconds) : "";
     updateTimerClass(payload.settings.timeLimitSeconds, payload.settings.timeLimitSeconds);
@@ -487,22 +657,22 @@
 
     $("#hud-score").textContent = "0";
     setProgress(0, payload.totalQuestions, 1);
-    $("#streak-badge").hidden = true;
-    $("#final-ribbon").hidden = !(payload.challengeType === "mixed" || /final/i.test(payload.challengeTitle || ""));
+    $("#streak-pop").hidden = true;
 
-    const field = $("#field");
-    field.classList.toggle("field--speed", payload.challengeType === "speed_round");
-    field.classList.toggle("field--final", $("#final-ribbon").hidden === false);
+    const whack = $("#whack");
+    whack.classList.toggle("whack--speed", payload.challengeType === "speed_round");
 
+    clearNode($("#yard"));
+    $("#binary").hidden = true;
     hideFeedback();
     showScreen("game");
-    fieldTier();
+    yardTier();
   }
 
   function setProgress(answered, total, currentNumber) {
     const pct = total > 0 ? Math.round((answered / total) * 100) : 0;
     $("#hud-progress-fill").style.width = pct + "%";
-    $("#hud-progress-label").textContent = Math.min(currentNumber, total) + " / " + total;
+    $("#hud-progress-label").textContent = "Question " + Math.min(currentNumber, total) + " / " + total;
   }
 
   function updateTimerClass(remaining, total) {
@@ -517,73 +687,140 @@
     ctx.question = payload.question;
     ctx.questionLocked = false;
     ctx.marked = null;
+    ctx.tapMeansCorrect = true;
 
-    const field = $("#field");
-    const tier = fieldTier();
+    const yard = $("#yard");
+    const binary = $("#binary");
+    const tier = yardTier();
     const q = payload.question;
-
-    $("#prompt-bar").textContent = q.prompt || "";
-    const sentenceCard = $("#sentence-card");
-    const slots = $("#slots");
-    const choiceStack = $("#choice-stack");
-    const binary = $("#binary-actions");
-    clearNode(slots); clearNode(choiceStack); clearNode(sentenceCard);
-    sentenceCard.hidden = true;
+    clearNode(yard);
+    hideFeedback();
     binary.hidden = true;
 
+    const setText = (sel, value) => { $(sel).textContent = value; };
+    const setShown = (sel, shown) => { $(sel).hidden = !shown; };
+
     if (q.type === "correct_incorrect") {
-      if (tier === "desktop") {
-        // The sentence pops out of a hole like an arcade target.
-        const slotPos = SLOTS_DESKTOP[Math.floor(Math.random() * 3)]; // top row only
-        const slot = makeSlot(slotPos);
-        slot.querySelector(".slot__target").classList.add("slot__target--sentence");
-        slot.querySelector(".slot__target").textContent = q.text || "";
-        slot.querySelector(".slot__target").removeAttribute("onclick");
-        slot.querySelector(".slot__target").setAttribute("aria-hidden", "true");
-        slots.appendChild(slot);
-      } else {
-        sentenceCard.hidden = false;
-        sentenceCard.textContent = q.text || "";
+      // One mascot pops up with the sentence; tap it or use the paddles.
+      ctx.tapMeansCorrect = !/mistake|wrong/i.test(q.prompt || "");
+      setText("#instruction-text", q.prompt || "Is this sentence correct?");
+      setText("#instruction-hint", ctx.tapMeansCorrect
+        ? "Whack the mole if the sentence is correct"
+        : "Whack the mole if the sentence has a mistake");
+      setShown("#instruction-hint", true);
+      setShown("#instruction-sentence", false);
+
+      // Single-sentence questions pop from one hole — front (bottom) row on
+      // desktop for depth, mirroring the reference's foreground animal.
+      const pool = tier === "mobile"
+        ? HOLE_LAYOUTS.mobile
+        : HOLE_LAYOUTS.desktop.filter((h) => h.row === "bottom")
+          .concat(HOLE_LAYOUTS.desktop.filter((h) => h.row === "top"));
+      let hole = pool[Math.floor(Math.random() * pool.length)];
+      if (ctx.lastHoleKey && hole.x === ctx.lastHoleKey.x && hole.y === ctx.lastHoleKey.y) {
+        hole = pool[(pool.indexOf(hole) + 1) % pool.length];
       }
+      ctx.lastHoleKey = hole;
+      yard.appendChild(makeHole(hole));
+      yard.appendChild(makeMole(hole, {
+        bubble: q.text || "",
+        mascot: nextMascot(),
+        label: q.text || "The sentence",
+        onTap: () => submit(ctx.tapMeansCorrect),
+      }));
       binary.hidden = false;
     } else if (q.type === "missing_word") {
-      sentenceCard.hidden = false;
-      sentenceCard.appendChild(renderSentenceWithBlank(q.text || ""));
-      const options = Array.isArray(q.options) ? q.options : [];
-      if (tier === "desktop" && options.length > 0) {
-        const picked = pickSlots(options.length);
-        options.forEach((option, i) => {
-          slots.appendChild(makeWordSlot(picked[i], option));
-        });
-      } else {
-        binary.hidden = true;
-        options.forEach((option) => {
-          choiceStack.appendChild(el("button", {
-            class: "choice-card",
-            text: option,
-            onclick: () => submit(option),
-          }));
-        });
-      }
+      setText("#instruction-text", "Tap the animal holding the missing word");
+      setShown("#instruction-hint", false);
+      const holder = $("#instruction-sentence");
+      clearNode(holder);
+      holder.appendChild(renderSentenceWithBlank(q.text || ""));
+      setShown("#instruction-sentence", true);
+      spawnOptionMoles(yard, tier, q);
     } else if (q.type === "multiple_choice") {
-      (Array.isArray(q.options) ? q.options : []).forEach((option) => {
-        choiceStack.appendChild(el("button", {
-          class: "choice-card",
-          text: option,
-          onclick: () => submit(option),
-        }));
-      });
+      setText("#instruction-text", q.prompt || "Tap the animal with the correct sentence");
+      setShown("#instruction-hint", false);
+      setShown("#instruction-sentence", false);
+      spawnOptionMoles(yard, tier, q);
     } else {
       // Unknown format: degrade gracefully instead of a blank field.
-      sentenceCard.hidden = false;
-      sentenceCard.textContent = q.prompt || "Choose the correct answer.";
-      (Array.isArray(q.options) ? q.options : ["true", "false"]).forEach((option) => {
-        choiceStack.appendChild(el("button", { class: "choice-card", text: String(option), onclick: () => submit(option) }));
-      });
+      setText("#instruction-text", q.prompt || "Choose the correct answer");
+      setShown("#instruction-hint", false);
+      setShown("#instruction-sentence", false);
+      spawnOptionMoles(yard, tier, { options: (Array.isArray(q.options) ? q.options : ["true", "false"]) });
     }
 
     setProgress(payload.answeredCount, payload.totalQuestions, payload.questionNumber);
-    hideFeedback();
+  }
+
+  // Several mascots pop out of top-row holes, one per option. On phones the
+  // whole mobile grid is drawn (extra hole stays empty) like the reference.
+  function spawnOptionMoles(yard, tier, q) {
+    const options = Array.isArray(q.options) ? q.options.slice(0, 3) : [];
+    if (tier === "mobile") {
+      HOLE_LAYOUTS.mobile.forEach((hole) => yard.appendChild(makeHole(hole)));
+      const top = HOLE_LAYOUTS.mobile.filter((h) => h.row === "top");
+      const holes = shuffleList(top).slice(0, Math.max(1, options.length));
+      options.forEach((option, i) => {
+        yard.appendChild(makeMole(holes[i], {
+          bubble: String(option),
+          mascot: MOLE_CAST[i % MOLE_CAST.length],
+          label: "Answer: " + option,
+          delay: i * 90,
+          onTap: () => submit(option),
+        }));
+      });
+      return;
+    }
+    const pool = HOLE_LAYOUTS.desktop.filter((h) => h.row === "top");
+    const holes = shuffleList(pool).slice(0, Math.max(1, options.length));
+    options.forEach((option, i) => {
+      yard.appendChild(makeHole(holes[i]));
+      yard.appendChild(makeMole(holes[i], {
+        bubble: String(option),
+        mascot: MOLE_CAST[i % MOLE_CAST.length],
+        label: "Answer: " + option,
+        delay: i * 90,
+        onTap: () => submit(option),
+      }));
+    });
+  }
+
+  function makeHole(pos) {
+    return el("div", {
+      class: "hole",
+      style: "left:" + pos.x + "%; top:" + pos.y + "%",
+    }, [el("div", { class: "hole__pit" })]);
+  }
+
+  function makeMole(pos, options) {
+    const delay = options.delay || 0;
+    const mole = el("button", {
+      class: "mole",
+      // bottom:(100-y)% pins the mascot's feet at the hole centre line
+      style: "left:" + pos.x + "%; bottom:" + (100 - pos.y) + "%",
+      "aria-label": options.label,
+    }, [
+      el("span", { class: "mole__clip" }, [
+        el("img", {
+          class: "mole__img",
+          src: MASCOTS + options.mascot + ".png",
+          alt: "",
+          style: "animation-delay:" + delay + "ms",
+        }),
+      ]),
+      el("span", {
+        class: "mole__bubble",
+        text: options.bubble,
+        style: "animation-delay:" + (140 + delay) + "ms",
+      }),
+    ]);
+    mole.addEventListener("click", () => {
+      if (ctx.questionLocked) return;
+      mole.classList.add("is-hit");
+      options.onTap();
+    });
+    return mole;
   }
 
   function renderSentenceWithBlank(text) {
@@ -596,38 +833,6 @@
     return frag;
   }
 
-  function pickSlots(count) {
-    const positions = SLOTS_DESKTOP.slice();
-    // shuffle then take `count`, preferring a spread across both rows
-    for (let i = positions.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [positions[i], positions[j]] = [positions[j], positions[i]];
-    }
-    return positions.slice(0, Math.min(count, positions.length));
-  }
-
-  function makeSlot(pos) {
-    return el("div", {
-      class: "slot",
-      style: "left:" + pos.x + "%; top:" + pos.y + "%",
-    }, [
-      el("div", { class: "slot__hole" }),
-      el("div", { class: "slot__target", role: "button", tabindex: "0" }),
-    ]);
-  }
-
-  function makeWordSlot(pos, option) {
-    const slot = makeSlot(pos);
-    const target = slot.querySelector(".slot__target");
-    target.textContent = option;
-    target.setAttribute("aria-label", "Answer: " + option);
-    target.addEventListener("click", () => submit(option));
-    target.addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); submit(option); }
-    });
-    return slot;
-  }
-
   function submit(answer) {
     if (ctx.questionLocked) return;
     ctx.questionLocked = true; // block rapid double taps until the next question
@@ -638,38 +843,21 @@
   /* ----------------------------- feedback ------------------------------ */
 
   function showFeedback(feedback) {
-    const overlay = $("#feedback");
-    const card = overlay.querySelector(".feedback__card");
-    overlay.className = "feedback " + (feedback.correct ? "feedback--correct" : "feedback--wrong");
+    const coach = $("#feedback");
+    coach.classList.toggle("coach--wrong", !feedback.correct);
     $("#feedback-icon").src = ICONS + (feedback.correct ? "star-full" : "wrong") + ".png";
     $("#feedback-title").textContent = feedback.correct ? "Correct!" : "Not quite";
 
-    const body = $("#feedback-body");
-    clearNode(body);
+    let detail = "";
     if (!feedback.correct) {
-      body.appendChild(el("div", { class: "feedback__row" }, [
-        el("span", { class: "feedback__label", text: "Your answer" }),
-        el("span", { class: "feedback__value feedback__value--no", text: answerText(feedback.learnerAnswer) }),
-      ]));
-      body.appendChild(el("div", { class: "feedback__row" }, [
-        el("span", { class: "feedback__label", text: "Correct" }),
-        el("span", { class: "feedback__value feedback__value--ok", text: feedback.correctAnswer || "" }),
-      ]));
+      detail = "Correct: " + (feedback.correctAnswer || "");
+      if (feedback.explanation) detail += " — " + feedback.explanation;
     } else {
-      body.appendChild(el("div", { class: "feedback__row" }, [
-        el("span", { class: "feedback__label", text: feedback.correction ? "Correct sentence" : "Nice!" }),
-        el("span", { class: "feedback__value feedback__value--ok", text: feedback.correction || feedback.correctAnswer || "" }),
-      ]));
+      detail = feedback.correction || feedback.explanation || "Well done!";
     }
-    if (feedback.explanation) {
-      body.appendChild(el("div", { class: "feedback__rule" }, [
-        el("strong", { text: "Rule: " }),
-        document.createTextNode(feedback.explanation),
-      ]));
-    }
-    $("#feedback-continue").textContent = feedback.isFinalQuestion ? "See results" : "Continue";
-    overlay.hidden = false;
-    card.scrollTop = 0;
+    $("#feedback-detail").textContent = detail;
+    $("#feedback-continue").textContent = feedback.isFinalQuestion ? "Results" : "Next";
+    coach.hidden = false;
   }
 
   function hideFeedback() {
@@ -681,37 +869,45 @@
     return String(value);
   }
 
-  function markTargets(feedback) {
+  function markAnswer(feedback) {
     ctx.marked = {
       learnerValue: feedback.learnerAnswer,
       correctValue: feedback.correctAnswer,
       correct: feedback.correct,
     };
-    const apply = (node, value) => {
-      const text = String(value);
-      if (text === String(feedback.learnerAnswer) && !feedback.correct) node.classList.add("is-wrong");
-      else if (text === String(feedback.learnerAnswer) && feedback.correct) node.classList.add("is-correct");
-      else node.classList.add("is-dimmed");
-    };
-    document.querySelectorAll("#slots .slot__target").forEach((node) => {
-      if (node.classList.contains("slot__target--sentence")) return;
-      apply(node, node.textContent);
-    });
-    document.querySelectorAll("#choice-stack .choice-card").forEach((node) => apply(node, node.textContent));
+    const same = (a, b) => String(a) === String(b);
 
-    const correctBtn = $("#answer-correct");
-    const wrongBtn = $("#answer-incorrect");
-    if (!correctBtn.hidden || ctx.question?.type === "correct_incorrect") {
-      const pickedCorrect = feedback.learnerAnswer === true;
-      [correctBtn, wrongBtn].forEach((btn) => btn.classList.remove("is-picked-correct", "is-picked-wrong", "is-dimmed"));
-      if (feedback.correct) {
-        correctBtn.classList.add("is-picked-correct");
-        wrongBtn.classList.add("is-dimmed");
+    // moles: hit reaction on the chosen one, dim + duck the rest
+    const moles = [...document.querySelectorAll("#yard .mole")];
+    moles.forEach((mole) => {
+      const bubble = mole.querySelector(".mole__bubble");
+      const value = bubble ? bubble.textContent : "";
+      const isChosen = same(value, answerText(feedback.learnerAnswer)) ||
+        (ctx.question && ctx.question.type === "correct_incorrect" && mole.classList.contains("is-hit"));
+      if (isChosen) {
+        mole.classList.add("is-hit", feedback.correct ? "is-correct" : "is-wrong");
       } else {
-        (pickedCorrect ? correctBtn : wrongBtn).classList.add("is-picked-wrong");
-        (pickedCorrect ? wrongBtn : correctBtn).classList.remove("is-dimmed");
+        mole.classList.add("is-dim");
+        setTimeout(() => mole.classList.add("is-down"), 260);
+      }
+      if (isChosen) setTimeout(() => mole.classList.add("is-down"), feedback.correct ? 620 : 900);
+    });
+
+    // paddles (binary questions)
+    const good = $("#answer-correct");
+    const bad = $("#answer-incorrect");
+    if (ctx.question && ctx.question.type === "correct_incorrect") {
+      const pickedGood = feedback.learnerAnswer === true;
+      [good, bad].forEach((p) => p.classList.remove("is-picked-good", "is-picked-bad", "is-dim"));
+      if (feedback.correct) {
+        good.classList.add("is-picked-good");
+        bad.classList.add("is-dim");
+      } else {
+        (pickedGood ? good : bad).classList.add("is-picked-bad");
+        (pickedGood ? bad : good).classList.remove("is-dim");
       }
     }
+    $("#binary").hidden = true;
   }
 
   /* ------------------------------ results ------------------------------ */
@@ -935,7 +1131,7 @@
 
     engine.on(E.ANSWER_SUBMITTED, (feedback) => {
       ctx.questionLocked = true;
-      markTargets(feedback);
+      markAnswer(feedback);
       showFeedback(feedback);
       Sound.play(feedback.correct ? "correct" : "wrong");
       if (feedback.pointsAwarded > 0) popupScore("+" + feedback.pointsAwarded, feedback.correct);
@@ -955,20 +1151,17 @@
     });
 
     engine.on(E.STREAK_CHANGED, (payload) => {
-      const badge = $("#streak-badge");
-      if (payload.streak >= 2) {
-        badge.hidden = false;
-        $("#streak-count").textContent = "×" + payload.streak;
-        if (STREAK_MILESTONES.includes(payload.streak)) {
-          Sound.play("streak");
-          badge.classList.remove("is-milestone");
-          void badge.offsetWidth;
-          badge.classList.add("is-milestone");
-        }
-      } else {
-        badge.hidden = true;
-        badge.classList.remove("is-milestone");
-      }
+      if (payload.streak < 2) return;
+      const pop = $("#streak-pop");
+      $("#streak-pop-count").textContent = "×" + payload.streak;
+      pop.classList.remove("is-out");
+      pop.hidden = false;
+      clearTimeout(ctx.streakTimer);
+      ctx.streakTimer = setTimeout(() => {
+        pop.classList.add("is-out");
+        setTimeout(() => { pop.hidden = true; }, 280);
+      }, 1500);
+      if (STREAK_MILESTONES.includes(payload.streak)) Sound.play("streak");
     });
 
     engine.on(E.LIVES_CHANGED, (payload) => {
@@ -1051,14 +1244,15 @@
 
   function popupScore(text, isCorrect, isLife) {
     const layer = $("#score-popups");
-    const field = $("#field");
-    const anchor = document.querySelector("#slots .slot__target.is-correct, #choice-stack .choice-card.is-correct") ;
-    let xPct = 50, yPct = 30;
-    if (anchor) {
+    const yard = $("#yard");
+    const anchor = document.querySelector("#yard .mole.is-hit .mole__bubble") ||
+      document.querySelector("#yard .mole.is-hit");
+    let xPct = 50, yPct = 34;
+    if (anchor && yard) {
       const rect = anchor.getBoundingClientRect();
-      const fieldRect = field.getBoundingClientRect();
-      xPct = ((rect.left + rect.width / 2 - fieldRect.left) / fieldRect.width) * 100;
-      yPct = ((rect.top - fieldRect.top) / fieldRect.height) * 100;
+      const yardRect = yard.getBoundingClientRect();
+      xPct = ((rect.left + rect.width / 2 - yardRect.left) / yardRect.width) * 100;
+      yPct = ((rect.top - yardRect.top) / yardRect.height) * 100;
     }
     const popup = el("span", {
       class: "score-popup" + (isLife ? " score-popup--life" : ""),
@@ -1124,25 +1318,31 @@
 
     $("#settings-close").addEventListener("click", () => {
       closeModal();
-      if (ctx.modalStack.length === 0 && engine.status === "paused") openModal("pause");
     });
     $("#home-settings").addEventListener("click", () => openModal("settings"));
     $("#home-help").addEventListener("click", () => openModal("help"));
     $("#help-close").addEventListener("click", closeModal);
 
-    $("#home-sound").addEventListener("click", () => {
-      uiSettings.sound = !uiSettings.sound;
-      saveSettings();
-      syncSoundIcon();
-      toast(uiSettings.sound ? "Sound on" : "Sound off", uiSettings.sound ? "sound-on" : "sound-off");
-    });
+    // Sound controls are optional: the host platform (Boston English Center)
+    // may own sound instead of the game, so these elements can be absent.
+    const homeSound = $("#home-sound");
+    if (homeSound) {
+      homeSound.addEventListener("click", () => {
+        uiSettings.sound = !uiSettings.sound;
+        saveSettings();
+        syncSoundIcon();
+        toast(uiSettings.sound ? "Sound on" : "Sound off", uiSettings.sound ? "sound-on" : "sound-off");
+      });
+    }
 
     const soundSwitch = $("#setting-sound");
-    soundSwitch.addEventListener("click", () => {
-      uiSettings.sound = !uiSettings.sound;
-      saveSettings();
-      syncSettingsModal();
-    });
+    if (soundSwitch) {
+      soundSwitch.addEventListener("click", () => {
+        uiSettings.sound = !uiSettings.sound;
+        saveSettings();
+        syncSettingsModal();
+      });
+    }
     $("#setting-anim").addEventListener("click", () => {
       uiSettings.animations = !uiSettings.animations;
       saveSettings();
@@ -1180,12 +1380,15 @@
   }
 
   function syncSoundIcon() {
-    $("#home-sound img").src = ICONS + (uiSettings.sound ? "sound-on" : "sound-off") + ".png";
+    const icon = $("#home-sound img");
+    if (icon) icon.src = ICONS + (uiSettings.sound ? "sound-on" : "sound-off") + ".png";
   }
 
   function syncSettingsModal() {
-    $("#setting-sound").setAttribute("aria-checked", String(uiSettings.sound));
-    $("#setting-anim").setAttribute("aria-checked", String(uiSettings.animations));
+    const soundSwitch = $("#setting-sound");
+    if (soundSwitch) soundSwitch.setAttribute("aria-checked", String(uiSettings.sound));
+    const animSwitch = $("#setting-anim");
+    if (animSwitch) animSwitch.setAttribute("aria-checked", String(uiSettings.animations));
     syncSoundIcon();
   }
 
@@ -1193,7 +1396,7 @@
     const topModal = ctx.modalStack[ctx.modalStack.length - 1];
     if (event.key === "Escape") {
       if (topModal === "pause") { closeModal(); engine.resume(); return; }
-      if (topModal) { closeModal(); if (engine.status === "paused") openModal("pause"); return; }
+      if (topModal) { closeModal(); return; }
       if (!$("#feedback").hidden) { $("#feedback-continue").click(); return; }
       if (ctx.screen === "game" && engine.status === "playing") { engine.pause(); }
       return;
@@ -1220,7 +1423,12 @@
   }
 
   function onResize() {
-    if (ctx.screen === "map") sizeMapCanvas();
+    if (ctx.screen === "map" && window.innerWidth !== ctx.mapRenderWidth) {
+      // Width changed (rotation, desktop window resize): re-lay out the map
+      // for the new size/mode. Height-only changes (mobile URL bar) are
+      // ignored so the scroll position never jumps.
+      renderMap();
+    }
     if (ctx.screen === "game" && ctx.question && $("#feedback").hidden) {
       // question visible and unanswered: re-render for the new field tier
       const state = engine.getPublicState();
@@ -1236,8 +1444,9 @@
   }
 
   function preload() {
-    ["assets/images/bg-gameplay.jpg", "assets/images/bg-map.jpg",
-     MASCOTS + "dragon.png", ICONS + "heart-full.png", ICONS + "heart-empty.png",
+    ["assets/images/bg-map-journey.jpg",
+     MASCOTS + "dragon.png", MASCOTS + "owl.png", MASCOTS + "fox.png", MASCOTS + "book.png",
+     ICONS + "heart-full.png", ICONS + "heart-empty.png",
      ICONS + "star-full.png", ICONS + "timer.png"].forEach((src) => {
       const img = new Image();
       img.src = src;

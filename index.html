@@ -54,9 +54,6 @@
           <button type="button" class="icon-btn" id="home-settings" aria-label="Settings">
             <img src="assets/icons/settings.png" alt="" width="28" height="28">
           </button>
-          <button type="button" class="icon-btn" id="home-sound" aria-label="Toggle sound">
-            <img src="assets/icons/sound-on.png" alt="" width="28" height="28">
-          </button>
           <button type="button" class="icon-btn" id="home-help" aria-label="How to play">
             <span class="icon-btn__glyph" aria-hidden="true">?</span>
           </button>
@@ -66,20 +63,25 @@
 
     <!-- ============================ LEVEL MAP ============================ -->
     <section class="screen screen--map" id="screen-map" aria-label="Level map" hidden>
-      <header class="screen-header">
+      <header class="screen-header screen-header--map">
         <button type="button" class="icon-btn" id="map-home" aria-label="Back to home">
           <img src="assets/icons/home.png" alt="" width="26" height="26">
         </button>
-        <h2 class="screen-header__title">Adventure Map</h2>
+        <div class="screen-header__titles">
+          <span class="screen-header__brand">Grammar Quest</span>
+          <h2 class="screen-header__title">Adventure Map</h2>
+        </div>
         <div class="star-total" id="map-stars" aria-label="Total stars">
           <img src="assets/icons/star-full.png" alt="" width="22" height="22">
           <span>0</span>
         </div>
       </header>
       <div class="map-viewport">
+        <div class="map-fade map-fade--top" aria-hidden="true"></div>
         <div class="map-canvas" id="map-canvas">
           <!-- level nodes rendered by ui.js -->
         </div>
+        <div class="map-fade map-fade--bottom" aria-hidden="true"></div>
       </div>
     </section>
 
@@ -131,65 +133,75 @@
 
     <!-- ============================ GAMEPLAY ============================ -->
     <section class="screen screen--game" id="screen-game" aria-label="Gameplay" hidden>
-      <div class="hud">
-        <div class="hud__row hud__row--main">
-          <button type="button" class="icon-btn icon-btn--solid hud__pause" id="hud-pause" aria-label="Pause game">
-            <img src="assets/icons/pause.png" alt="" width="24" height="24">
-          </button>
-          <div class="hud__title">
-            <span class="hud__level" id="hud-level"></span>
-            <span class="hud__challenge" id="hud-challenge"></span>
+      <header class="gamebar">
+        <div class="gamebar__level">
+          <span class="gamebar__shield" aria-hidden="true">
+            <img src="assets/icons/trophy.png" alt="" width="22" height="22">
+          </span>
+          <span class="gamebar__title">
+            <strong id="hud-level">Level 1</strong>
+            <span class="gamebar__sep" aria-hidden="true">•</span>
+            <span id="hud-challenge">Present Simple</span>
+            <span class="gamebar__finaltag" id="hud-finaltag" hidden>Final</span>
+          </span>
+        </div>
+        <div class="gamebar__progress">
+          <div class="gamebar__bar"><div class="gamebar__fill" id="hud-progress-fill"></div></div>
+          <span class="gamebar__qlabel" id="hud-progress-label">Question 1 / 5</span>
+        </div>
+        <div class="gamebar__stats">
+          <div class="gamebar__hearts" id="hud-hearts" aria-label="Lives"></div>
+          <div class="gamebar__timer" id="hud-timer-wrap" hidden>
+            <img src="assets/icons/timer.png" alt="" width="17" height="17">
+            <span id="hud-timer">1:30</span>
           </div>
-          <div class="hud__timer" id="hud-timer-wrap" hidden>
-            <img src="assets/icons/timer.png" alt="" width="22" height="22">
-            <span class="hud__timer-value" id="hud-timer">0:00</span>
+          <div class="gamebar__score" id="hud-score-wrap">
+            <img src="assets/icons/star-full.png" alt="" width="16" height="16">
+            <span id="hud-score">0</span>
           </div>
         </div>
-        <div class="hud__row hud__row--sub">
-          <div class="hud__hearts" id="hud-hearts" aria-label="Lives"></div>
-          <div class="hud__progress">
-            <div class="hud__progress-bar"><div class="hud__progress-fill" id="hud-progress-fill"></div></div>
-            <span class="hud__progress-label" id="hud-progress-label">1 / 5</span>
-          </div>
-          <div class="hud__score" id="hud-score-wrap">
-            <span class="hud__score-label">Score</span>
-            <span class="hud__score-value" id="hud-score">0</span>
-          </div>
-        </div>
-      </div>
+      </header>
 
-      <div class="field" id="field">
-        <div class="field__bg" aria-hidden="true"></div>
-        <div class="prompt-bar" id="prompt-bar" role="heading" aria-level="2"></div>
-        <div class="sentence-card" id="sentence-card" hidden></div>
-        <div class="slots" id="slots" aria-hidden="false"></div>
-        <div class="choice-stack" id="choice-stack"></div>
-        <div class="binary-actions" id="binary-actions" hidden>
-          <button type="button" class="answer-btn answer-btn--correct" id="answer-correct">
-            <span class="answer-btn__mark answer-btn__mark--ok" aria-hidden="true">✓</span>
-            <span>Correct</span>
-          </button>
-          <button type="button" class="answer-btn answer-btn--wrong" id="answer-incorrect">
-            <span class="answer-btn__mark answer-btn__mark--no" aria-hidden="true">✗</span>
-            <span>Incorrect</span>
-          </button>
+      <div class="whack" id="whack">
+        <div class="whack__bg" aria-hidden="true"></div>
+
+        <div class="instruction" id="instruction">
+          <span class="instruction__sparkle" aria-hidden="true">✦</span>
+          <p class="instruction__text" id="instruction-text">Tap the correct sentence</p>
+          <span class="instruction__sparkle instruction__sparkle--right" aria-hidden="true">✦</span>
+          <p class="instruction__hint" id="instruction-hint" hidden></p>
+          <p class="instruction__sentence" id="instruction-sentence" hidden></p>
         </div>
-        <div class="streak-badge" id="streak-badge" hidden>
-          <img src="assets/images/rewards/badge-xp.png" alt="" width="34" height="34">
-          <span class="streak-badge__count" id="streak-count">×2</span>
+
+        <div class="yard" id="yard"></div>
+
+        <button type="button" class="pause-pill" id="hud-pause" aria-label="Pause game">
+          <img src="assets/icons/pause.png" alt="" width="18" height="18">
+          <span>Pause</span>
+        </button>
+
+        <div class="streak-pop" id="streak-pop" hidden>
+          <img src="assets/images/rewards/badge-xp.png" alt="" width="26" height="26">
+          <span id="streak-pop-count">×2</span>
         </div>
         <div class="score-popups" id="score-popups" aria-hidden="true"></div>
-        <div class="final-test-ribbon" id="final-ribbon" hidden>Final Test</div>
-      </div>
 
-      <div class="feedback" id="feedback" hidden>
-        <div class="feedback__card" role="dialog" aria-label="Answer feedback">
-          <div class="feedback__head" id="feedback-head">
-            <img class="feedback__icon" id="feedback-icon" src="assets/icons/star-full.png" alt="" width="34" height="34">
-            <h3 class="feedback__title" id="feedback-title">Correct!</h3>
+        <div class="binary" id="binary" hidden>
+          <button type="button" class="paddle paddle--good" id="answer-correct">
+            <span class="paddle__mark" aria-hidden="true">✓</span><span>Correct</span>
+          </button>
+          <button type="button" class="paddle paddle--bad" id="answer-incorrect">
+            <span class="paddle__mark" aria-hidden="true">✗</span><span>Mistake</span>
+          </button>
+        </div>
+
+        <div class="coach" id="feedback" hidden>
+          <img class="coach__icon" id="feedback-icon" src="assets/icons/star-full.png" alt="" width="26" height="26">
+          <div class="coach__body">
+            <strong class="coach__title" id="feedback-title">Correct!</strong>
+            <span class="coach__detail" id="feedback-detail"></span>
           </div>
-          <div class="feedback__body" id="feedback-body"></div>
-          <button type="button" class="btn btn--primary" id="feedback-continue">Continue</button>
+          <button type="button" class="coach__next" id="feedback-continue">Next</button>
         </div>
       </div>
     </section>
@@ -237,12 +249,6 @@
 
     <div class="modal modal--settings" id="modal-settings" role="dialog" aria-modal="true" aria-label="Settings" hidden>
       <h2 class="modal__title">Settings</h2>
-      <div class="setting-row">
-        <span class="setting-row__label" id="label-sound">Sound effects</span>
-        <button type="button" class="switch" id="setting-sound" role="switch" aria-checked="true" aria-labelledby="label-sound">
-          <span class="switch__knob"></span>
-        </button>
-      </div>
       <div class="setting-row">
         <span class="setting-row__label" id="label-anim">Animations</span>
         <button type="button" class="switch" id="setting-anim" role="switch" aria-checked="true" aria-labelledby="label-anim">
