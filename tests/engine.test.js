@@ -148,7 +148,7 @@ function fakeLocalStorage() {
     check("L1 unlocked", engine.isLevelUnlocked(1) === true);
     check("C1 unlocked", engine.isChallengeUnlocked(1, 1) === true);
     check("C2 locked", engine.isChallengeUnlocked(1, 2) === false);
-    check("C5 locked", engine.isChallengeUnlocked(1, 5) === false);
+    check("final challenge locked", engine.isChallengeUnlocked(1, jsonData.levels[0].challenges.length) === false);
     const start = engine.startChallenge(1, 2);
     check("locked challenge cannot start", start.started === false && start.locked === true, start);
     check("status still ready after locked attempt", engine.status === "ready", engine.status);
@@ -231,22 +231,31 @@ function fakeLocalStorage() {
   });
 
   await test("missing-word validation works (case/space tolerant, meaning strict)", async () => {
-    const engine = await engineReadyFor(3); // challenge 3 = missing_word
+    // The shipped final test mixes types and has two missing_word items; this
+    // test needs three interactions, so a third is appended in a data clone.
+    const data = clone(jsonData);
+    data.levels[0].challenges[2].questions.push({
+      id: 90, type: "missing_word", prompt: "Choose the missing word.",
+      text: "He ___ football every Sunday.", options: ["play", "plays", "playing"],
+      correctAnswer: "plays", correction: "He plays football every Sunday.",
+      explanation: "With he, add -s to the verb.",
+    });
+    const engine = await engineReadyFor(3, data);
     engine.startChallenge(1, 3);
-    let current = engine.getCurrentQuestion();
-    let src = srcQuestion(jsonData, 1, 3, current.id);
+    let current = walkTo(engine, 1, 3, (q) => q.type === "missing_word", data);
+    let src = srcQuestion(data, 1, 3, current.id);
     engine.submitAnswer("__nope__"); // wrong, -1 life
     check("one life lost", engine.getPublicState().lives === 2);
     engine.nextQuestion();
-    current = engine.getCurrentQuestion();
-    src = srcQuestion(jsonData, 1, 3, current.id);
+    current = walkTo(engine, 1, 3, (q) => q.type === "missing_word", data);
+    src = srcQuestion(data, 1, 3, current.id);
     const messy = "   " + String(src.correctAnswer).toUpperCase() + "  ";
     const result = engine.submitAnswer(messy);
     check("messy-but-equal answer counts as correct", result.accepted === true && result.correct === true, { messy, correct: src.correctAnswer });
     check("correction revealed for educational feedback", typeof result.correction === "string" || result.correct === true);
     engine.nextQuestion();
-    current = engine.getCurrentQuestion();
-    src = srcQuestion(jsonData, 1, 3, current.id);
+    current = walkTo(engine, 1, 3, (q) => q.type === "missing_word", data);
+    src = srcQuestion(data, 1, 3, current.id);
     const distractor = current.options.find((o) => o.toLowerCase() !== String(src.correctAnswer).toLowerCase());
     const wrongResult = engine.submitAnswer(distractor);
     check("distractor word form marked wrong", wrongResult.correct === false, distractor);
@@ -255,18 +264,18 @@ function fakeLocalStorage() {
   });
 
   await test("multiple-choice validation works (string and index answers)", async () => {
-    const engine = await engineReadyFor(5); // final test contains multiple_choice
-    engine.startChallenge(1, 5);
-    const mc = walkTo(engine, 1, 5, (q) => q.type === "multiple_choice");
+    const engine = await engineReadyFor(3); // final test contains multiple_choice
+    engine.startChallenge(1, 3);
+    const mc = walkTo(engine, 1, 3, (q) => q.type === "multiple_choice");
     check("hit a multiple_choice question", !!mc);
-    const src = srcQuestion(jsonData, 1, 5, mc.id);
+    const src = srcQuestion(jsonData, 1, 3, mc.id);
     const byText = engine.submitAnswer(src.correctAnswer);
     check("correct option string accepted", byText.accepted === true && byText.correct === true, byText);
     // index-based answering on a separate run
-    const engine2 = await engineReadyFor(5);
-    engine2.startChallenge(1, 5);
-    const mc2 = walkTo(engine2, 1, 5, (q) => q.type === "multiple_choice");
-    const src2 = srcQuestion(jsonData, 1, 5, mc2.id);
+    const engine2 = await engineReadyFor(3);
+    engine2.startChallenge(1, 3);
+    const mc2 = walkTo(engine2, 1, 3, (q) => q.type === "multiple_choice");
+    const src2 = srcQuestion(jsonData, 1, 3, mc2.id);
     const idx = mc2.options.findIndex((o) => o === src2.correctAnswer);
     const byIndex = engine2.submitAnswer(idx);
     check("option index resolves to the same answer", byIndex.accepted === true && byIndex.correct === true, { idx, byIndex });
@@ -275,12 +284,12 @@ function fakeLocalStorage() {
   });
 
   await test("mixed Final Test handles every item type", async () => {
-    const engine = await engineReadyFor(5);
-    const result = await playThrough(engine, 1, 5, { answerCorrectly: true });
+    const engine = await engineReadyFor(3);
+    const result = await playThrough(engine, 1, 3, { answerCorrectly: true });
     const types = new Set(result.review.map((r) => r.type));
     check("all three question types present",
       types.has("correct_incorrect") && types.has("missing_word") && types.has("multiple_choice"), [...types]);
-    check("5/5 correct", result.correctCount === 5 && result.wrongCount === 0, result);
+    check("4/4 correct", result.correctCount === 4 && result.wrongCount === 0, result);
     check("passed at 100% >= 80%", result.passed === true);
     check("3 stars at 100% (thresholds 80/90/95)", result.stars === 3, result.stars);
     check("perfect accuracy bonus applied", result.completionBonus >= 200, result.completionBonus);
@@ -304,19 +313,19 @@ function fakeLocalStorage() {
   });
 
   await test("no answer leakage in public read APIs", async () => {
-    const engine = await engineReadyFor(5);
-    engine.startChallenge(1, 5);
+    const engine = await engineReadyFor(3);
+    engine.startChallenge(1, 3);
     const dumped = JSON.stringify({
       levels: engine.getLevels(),
       one: engine.getLevel(1),
-      ch: engine.getChallenge(1, 5),
+      ch: engine.getChallenge(1, 3),
       q: engine.getCurrentQuestion(),
       state: engine.getPublicState(),
     });
     check("no correctAnswer in public payloads", !dumped.includes("correctAnswer"));
     check("no isCorrect in public payloads", !dumped.includes("isCorrect"));
-    check("no explanation leak pre-answer", !dumped.includes("With he, use plays"));
-    check("getChallenge has no questions array", engine.getChallenge(1, 5).questions === undefined);
+    check("no explanation leak pre-answer", !dumped.includes("With she, add -s"));
+    check("getChallenge has no questions array", engine.getChallenge(1, 3).questions === undefined);
   });
 
   await test("timer reaches zero and ends the challenge exactly once", async () => {
@@ -428,7 +437,7 @@ function fakeLocalStorage() {
     check("second attempt can pass", secondAttempt.passed === true && secondAttempt.livesRemaining === 3);
   });
 
-  await test("passing the 5th challenge unlocks the next level when it exists", async () => {
+  await test("passing the final challenge unlocks the next level when it exists", async () => {
     const twoLevels = clone(jsonData);
     twoLevels.levels.push({
       id: 2,
@@ -453,10 +462,10 @@ function fakeLocalStorage() {
     engine.on(EVENTS.LEVEL_UNLOCKED, (p) => { levelUnlocked = p; });
     engine.on(EVENTS.GAME_COMPLETED, () => { gameCompleted = true; });
     check("level 2 locked initially", engine.isLevelUnlocked(2) === false);
-    for (const challengeId of [1, 2, 3, 4, 5]) {
+    for (const challengeId of [1, 2, 3]) {
       await playThrough(engine, 1, challengeId, { answerCorrectly: true, data: twoLevels });
     }
-    check("level 2 unlocked after L1C5 passed", engine.isLevelUnlocked(2) === true);
+    check("level 2 unlocked after L1C3 passed", engine.isLevelUnlocked(2) === true);
     check("levelUnlocked event fired for level 2", !!levelUnlocked && levelUnlocked.levelId === 2, levelUnlocked);
     check("game not completed yet", gameCompleted === false);
     const finalResult = await playThrough(engine, 2, 1, { answerCorrectly: true, data: twoLevels });
@@ -471,7 +480,7 @@ function fakeLocalStorage() {
     const engine = await newEngine(); // real data: only level 1 exists
     let completed = false;
     engine.on(EVENTS.GAME_COMPLETED, () => { completed = true; });
-    for (const challengeId of [1, 2, 3, 4, 5]) {
+    for (const challengeId of jsonData.levels[0].challenges.map((c) => c.id)) {
       const r = await playThrough(engine, 1, challengeId, { answerCorrectly: true });
       check("challenge " + challengeId + " passed", r.passed === true);
     }
@@ -716,12 +725,19 @@ function fakeLocalStorage() {
   });
 
   await test("speed round behaves like a timed challenge with short limit", async () => {
-    const engine = await engineReadyFor(4);
-    const start = engine.startChallenge(1, 4);
+    // The shipped content has no standalone speed round anymore (shorter
+    // game), so the final challenge is relabeled in a data clone to keep
+    // exercising the engine's speed_round path.
+    const data = clone(jsonData);
+    const sr = data.levels[0].challenges[2];
+    sr.type = "speed_round";
+    sr.settings = Object.assign({}, sr.settings, { timeLimitSeconds: 45 });
+    const engine = await engineReadyFor(3, data);
+    const start = engine.startChallenge(1, 3);
     check("speed round starts", start.started === true);
     const state = engine.getPublicState();
     check("45s timer configured from JSON", state.timer.enabled === true && state.timer.totalSeconds === 45, state.timer);
-    const result = await runSession(engine, 1, 4, { answerCorrectly: true });
+    const result = await runSession(engine, 1, 3, { answerCorrectly: true, data });
     check("speed round passes", result.passed === true && result.timeLimitSeconds === 45, result);
   });
 
@@ -755,13 +771,13 @@ function fakeLocalStorage() {
   });
 
   await test("review data supports an educational review screen", async () => {
-    const engine = await engineReadyFor(5);
-    const result = await playThrough(engine, 1, 5, { answerCorrectly: true });
+    const engine = await engineReadyFor(3);
+    const result = await playThrough(engine, 1, 3, { answerCorrectly: true });
     const review = engine.getAttemptReview();
-    check("review entry per question", review.length === 5, review.length);
+    check("review entry per question", review.length === 4, review.length);
     check("review has questionId/type/learner answer/correct answer/explanation",
       review.every((r) => r.questionId !== undefined && r.type && r.learnerAnswer !== undefined && r.correctAnswer && r.explanation));
-    check("result carries the same review", result.review.length === 5);
+    check("result carries the same review", result.review.length === 4);
     check("review is a clone (mutating it is safe)", (() => { review[0].correct = false; return engine.getAttemptReview()[0].correct === true; })());
   });
 
