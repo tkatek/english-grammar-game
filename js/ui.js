@@ -149,7 +149,12 @@
     return node;
   }
 
-  const FEEDBACK_DELAY = { correct: 1700, wrong: 3800 };
+  const FEEDBACK_DELAY = { correct: 1100 };
+  // Wrong-answer reveal beat: the red hit lands at the hammer's impact frame,
+  // the green correct-target reveal follows ~140ms later, and the correction
+  // card waits until that reveal has settled. Wrong answers never auto-
+  // advance — the learner presses Next after reading the correction.
+  const REVEAL_DELAY = { correctTarget: 140, feedbackCard: 420, failScreen: 2400 };
   const STREAK_MILESTONES = [3, 5, 10];
   const SETTINGS_KEY = "grammar-quest:ui-settings:v1";
   const SOUND_NAMES = ["correct", "wrong", "streak", "timer-low", "complete", "unlock", "click"];
@@ -381,10 +386,14 @@
    * desktop: a fixed overlay <img> (pointer-events:none) that tracks the
    * mouse in a rAF loop while .hammer-mode hides the native cursor over
    * the whole arena — dogs, bubbles, bubble text and paddles included.
-   * Touch devices never get a floating cursor; they get the same artwork
-   * as a short-lived strike animation at the tap point. The engine stays
-   * authoritative: the hammer only animates, reactions are driven by
-   * ANSWER_SUBMITTED and never by sentence text.
+   * Touch devices get NO hammer at all: no floating cursor, no tap-strike
+   * overlay, no animation — a tap on the Prairie Dog/bubble submits the
+   * answer directly and the mole reaction carries the feedback. Hammer
+   * availability is decided by POINTER CAPABILITY ((hover:hover) and
+   * (pointer:fine)), never by viewport width, so rotating a phone can
+   * never enable it. The engine stays authoritative: the hammer only
+   * animates, reactions are driven by ANSWER_SUBMITTED and never by
+   * sentence text.
    * -------------------------------------------------------------------- */
   const HAMMER_URL = "assets/images/ui/grammar-quest-hammer.png";
   const HAMMER_OFFSET_X = 0.33; // strike face inside the artwork (head at the
@@ -396,10 +405,6 @@
     const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
     let root = null;         // persistent desktop overlay (position layer)
     let img = null;          // rotating artwork layer
-    let strike = null;       // one reusable touch strike hammer
-    let strikeImg = null;
-    let strikeTimer = 0;
-    let strikePlaying = false;
     let raf = 0;
     let px = 0;
     let py = 0;              // latest pointer position (never shown at 0,0)
@@ -408,11 +413,15 @@
     let locked = false;      // reaction playing -> no new swings
     let w = 96;
     let h = 96;              // cached overlay size
-    let sw = 72;
-    let sh = 72;             // cached strike size
+
+    // Capability, not width: hybrid devices that pair/unpair a mouse keep
+    // working — the query re-syncs hammer mode the moment it changes.
+    if (finePointer.addEventListener) {
+      finePointer.addEventListener("change", () => { mode = false; sync(); });
+    }
 
     function ensure() {
-      if (root) return;
+      if (root || !finePointer.matches) return; // never created on touch devices
       root = document.createElement("div");
       root.className = "hammer-cursor";
       root.setAttribute("aria-hidden", "true");
@@ -425,28 +434,10 @@
       document.body.appendChild(root);
     }
 
-    function ensureStrike() {
-      if (strike) return;
-      strike = document.createElement("div");
-      strike.className = "hammer-cursor hammer-strike";
-      strike.setAttribute("aria-hidden", "true");
-      strikeImg = document.createElement("img");
-      strikeImg.className = "hammer-cursor__img";
-      strikeImg.src = HAMMER_URL;
-      strikeImg.alt = "";
-      strikeImg.draggable = false;
-      strike.appendChild(strikeImg);
-      document.body.appendChild(strike);
-    }
-
     function syncSize() {
-      if (root) {
+      if (root && img) {
         const r = img.getBoundingClientRect();
         if (r.width) { w = r.width; h = r.height || r.width; }
-      }
-      if (strike) {
-        const r = strikeImg.getBoundingClientRect();
-        if (r.width) { sw = r.width; sh = r.height || r.width; }
       }
     }
 
@@ -494,26 +485,11 @@
       return true;
     }
 
-    function strikeAt(x, y) {
-      ensureStrike();
-      syncSize();
-      clearTimeout(strikeTimer);
-      strike.style.transform = "translate3d(" + Math.round(x - sw * HAMMER_OFFSET_X) +
-        "px," + Math.round(y - sh * HAMMER_OFFSET_Y) + "px,0)";
-      strike.classList.remove("is-striking");
-      void strike.offsetWidth;
-      strike.classList.add("is-visible", "is-striking");
-      strikePlaying = true;
-      strikeTimer = setTimeout(() => {
-        strike.classList.remove("is-visible", "is-striking");
-        strikePlaying = false;
-      }, HAMMER_SWING_MS);
-    }
-
     // Reveal engine reactions exactly when the hammer head lands; callers
     // pass the reaction work and this schedules it at the impact frame.
+    // On touch (no hammer) the reaction plays immediately.
     function impact(fn) {
-      if ((mode && inside) || strikePlaying) setTimeout(fn, HAMMER_IMPACT_MS);
+      if (mode && inside) setTimeout(fn, HAMMER_IMPACT_MS);
       else fn();
     }
 
@@ -570,8 +546,10 @@
         if (!ctx.question || ctx.questionLocked) return;
         const target = e.target.closest ? e.target.closest(".mole, .paddle") : null;
         if (!target) return;
-        if (e.pointerType === "touch" || !finePointer.matches) strikeAt(e.clientX, e.clientY);
-        else if (mode) whack();
+        // Touch: no hammer at all — the mole's own click handler submits the
+        // answer. Only a live fine-pointer desktop swing animates the hammer.
+        if (e.pointerType === "touch" || !finePointer.matches) return;
+        if (mode) whack();
       });
     }
 
@@ -1245,11 +1223,14 @@
 
   /* ----- Sentence waves (UI-layer grouping; engine validates answers) -----
    * Each correct_incorrect question becomes a wave of 1-4 sentences. Exactly
-   * one sentence satisfies the instruction. Hitting the engine's own
-   * sentence submits the instruction-polarity claim; hitting a decoy submits
-   * the opposite claim — so the engine's isCorrect check decides the result
-   * exactly as it would for a single-target question. Decoy texts come from
-   * the level's sentence pool (fetched read-only from questions.json).
+   * one sentence satisfies the instruction. Hitting a sentence submits the
+   * claim "this is the one to hit" mapped onto the engine's own isCorrect
+   * check for its question sentence: a hit on a satisfying target submits
+   * src.isCorrect and a hit on any other target submits the opposite — so
+   * the engine's verdict always matches the target that was actually hit.
+   * The wave ALWAYS contains the satisfying target (it leads the group and
+   * can never be cut by a small per-field target count). Decoy texts come
+   * from the level's sentence pool (fetched read-only from questions.json).
    * -------------------------------------------------------------------- */
 
   function buildSentenceWave(q, tier) {
@@ -1259,7 +1240,7 @@
     const src = pool.find((p) => p.text === text);
     if (!src) return null;
 
-    const C = ctx.tapMeansCorrect; // claim submitted when hitting the engine sentence
+    const C = ctx.tapMeansCorrect; // claim the instruction asks the learner to make
     const others = shuffleList(pool.filter((p) => p.text !== src.text));
     const decoys = [];
     let srcSatisfies;
@@ -1281,8 +1262,24 @@
     }
 
     const wanted = waveTargetCount(tier, text, decoys.map((d) => d.text));
-    const group = [{ text: src.text, claim: C, satisfies: srcSatisfies }]
-      .concat(decoys.slice(0, Math.max(0, wanted - 1)).map((d) => ({ text: d.text, claim: !C, satisfies: d.isCorrect === C })));
+    // Claim per target: engine-correct exactly when this target satisfies the
+    // instruction (satisfying -> src.isCorrect, otherwise its negation).
+    const toItem = (sentence, satisfies) => ({
+      text: sentence.text,
+      claim: satisfies ? src.isCorrect : !src.isCorrect,
+      satisfies,
+    });
+    let group;
+    if (srcSatisfies) {
+      group = [toItem(src, true)]
+        .concat(decoys.slice(0, Math.max(0, wanted - 1)).map((d) => toItem(d, false)));
+    } else {
+      // decoys[0] (unshifted above) is the satisfying target: it leads the
+      // group so a 1-target field still shows the selectable correct answer.
+      group = [toItem(decoys[0], true), toItem(src, false)]
+        .concat(decoys.slice(1, Math.max(1, wanted)).map((d) => toItem(d, false)))
+        .slice(0, Math.max(1, wanted));
+    }
     return shuffleList(group);
   }
 
@@ -1393,12 +1390,9 @@
     if (boxes.length < wave.length) {
       // Never stack two targets in one hole; when the field can only host
       // fewer targets, keep the instruction-satisfying one and fill the rest.
-      const satisfying = wave.filter((w) => w.satisfies);
-      const rest = wave.filter((w) => !w.satisfies);
-      usable = shuffleList([...rest]).slice(0, Math.max(0, boxes.length - satisfying.length)).concat(satisfying);
-      usable = shuffleList(usable);
+      usable = trimWaveTo(wave, boxes.length);
       boxes = pickWaveHoles(tier, usable.length, fw, fh, usable.map((w) => w.text));
-      if (boxes.length < usable.length) usable = usable.slice(0, boxes.length);
+      if (boxes.length < usable.length) usable = trimWaveTo(wave, boxes.length);
     }
     usable.forEach((item, i) => {
       const box = boxes[i];
@@ -1411,15 +1405,29 @@
         onTap: () => submitClaim(item.claim !== undefined ? item.claim : item.text, mole),
       });
       ctx.moleIndex = (ctx.moleIndex + 1) % NEUTRAL_KEYS.length;
-      ctx.activeMoles.push({ el: mole, text: item.text });
+      // satisfies powers the wrong-answer reveal: the target whose hit the
+      // engine judges correct for this interaction
+      ctx.activeMoles.push({ el: mole, text: item.text, satisfies: item.satisfies === true });
       yard.appendChild(mole);
     });
   }
 
+  // Reduce a wave to `count` targets without ever dropping the target that
+  // satisfies the instruction — after a wrong answer there must always be a
+  // real correct target on the field to reveal.
+  function trimWaveTo(wave, count) {
+    const keep = wave.filter((w) => w.satisfies);
+    const rest = shuffleList(wave.filter((w) => !w.satisfies))
+      .slice(0, Math.max(0, count - keep.length));
+    return shuffleList(keep.concat(rest));
+  }
+
   // Option questions: one mascot per option, popping from the widest-spaced
-  // row of the current artwork's holes. Unused painted holes stay empty.
+  // row of the current artwork's holes. Unused painted holes stay empty. The
+  // engine guarantees correctAnswer is among the options, and options stay in
+  // the engine's per-session order, so the correct target is always spawned.
   function spawnOptionMoles(yard, tier, q) {
-    const options = Array.isArray(q.options) ? q.options.slice(0, 3) : [];
+    const options = Array.isArray(q.options) ? q.options : [];
     const fw = yard.clientWidth || 1;
     const fh = yard.clientHeight || 1;
     const boxes = pickWaveHoles(tier, options.length, fw, fh, options.map(String));
@@ -1468,7 +1476,7 @@
     // start the idle breathing once the pop-up finishes (rise = 340ms + delay)
     setTimeout(() => {
       if (mole.isConnected && !mole.classList.contains("is-hit")) mole.classList.add("is-idle");
-    }, (delay || 0) + 400);
+    }, (delay || 0) + 340);
     mole.addEventListener("click", () => {
       if (ctx.questionLocked) return;
       mole.classList.remove("is-idle");
@@ -1508,13 +1516,13 @@
       if (!mole.isConnected) return;
       setMoleArt(mole, PRAIRIE_DOG_ASSETS.wrong.smashed);
       mole.classList.add("is-smashed");
-    }, 140);
+    }, 100);
     setTimeout(() => {
       if (!mole.isConnected) return;
       setMoleArt(mole, PRAIRIE_DOG_ASSETS.wrong.dizzy);
       mole.classList.remove("is-smashed");
       mole.classList.add("is-dizzy");
-    }, 420);
+    }, 320);
   }
 
   function renderSentenceWithBlank(text) {
@@ -1554,9 +1562,15 @@
 
     const detail = $("#feedback-detail");
     if (!feedback.correct) {
-      detail.appendChild(el("div", { class: "feedback-card__line feedback-card__line--ok", text: "Correct: " + (feedback.correctAnswer || "") }));
+      detail.appendChild(el("div", {
+        class: "feedback-card__line feedback-card__line--ok",
+        text: "Correct: " + (feedback.correction || feedback.correctAnswer || ""),
+      }));
       if (feedback.explanation) {
-        detail.appendChild(el("div", { class: "feedback-card__line feedback-card__line--rule", text: feedback.explanation }));
+        detail.appendChild(el("div", {
+          class: "feedback-card__line feedback-card__line--rule",
+          text: "Rule: " + feedback.explanation,
+        }));
       }
     } else {
       detail.appendChild(el("div", {
@@ -1577,6 +1591,49 @@
     return String(value);
   }
 
+  // Identify the one target whose hit the ENGINE would have judged correct
+  // for THIS interaction — never "the grammatically nice sentence". For
+  // sentence waves that is the instruction-satisfying target flagged at
+  // wave-build time (with "hit the mistake" prompts this is the sentence WITH
+  // the mistake); for option questions it is the engine's revealed
+  // correctAnswer text. No grammar rules live here.
+  function findCorrectTarget(feedback) {
+    const q = ctx.question;
+    const entries = ctx.activeMoles || [];
+    if (q && q.type === "correct_incorrect") {
+      const hit = entries.find((m) => m.satisfies === true && m.el.isConnected);
+      return hit ? hit.el : null;
+    }
+    const expected = feedback && typeof feedback.correctAnswer === "string" ? feedback.correctAnswer : "";
+    if (!expected.trim()) return null;
+    const norm = (s) => String(s).toLowerCase().replace(/\s+/g, " ").trim();
+    const hit = entries.find((m) => m.el.isConnected && norm(m.text) === norm(expected));
+    return hit ? hit.el : null;
+  }
+
+  function addMoleMark(mole, kind) {
+    if (mole.querySelector(".mole__mark")) return;
+    mole.appendChild(el("span", {
+      class: "mole__mark mole__mark--" + kind,
+      "aria-hidden": "true",
+    }, [icon(kind, 15)]));
+  }
+
+  // Reveal beat for the correct target: green ring + glowing bubble, happy
+  // Prairie Dog, check badge and a small "Correct answer" label. It stays up
+  // (never ducks away) while the correction card is on screen.
+  function revealCorrectTarget(mole) {
+    if (!mole.isConnected) return;
+    mole.classList.add("is-correct", "is-revealed-correct");
+    setMoleArt(mole, PRAIRIE_DOG_ASSETS.correct.thumbsUp);
+    mole.classList.add("is-bounce");
+    addMoleMark(mole, "check");
+    const bubble = mole.querySelector(".mole__bubble");
+    if (bubble && !bubble.querySelector(".mole__tag")) {
+      bubble.appendChild(el("span", { class: "mole__tag", text: "Correct answer" }));
+    }
+  }
+
   function markAnswer(feedback) {
     ctx.marked = {
       learnerValue: feedback.learnerAnswer,
@@ -1585,23 +1642,35 @@
     };
 
     // The selected mole performs the Prairie Dog reaction driven by the
-    // ENGINE result (learner action, not sentence grammar); the rest of the
-    // wave dims and ducks away.
+    // ENGINE result (learner action, not sentence grammar). On a wrong answer
+    // the actual correct target is revealed in green while unrelated targets
+    // only fade — visual hierarchy: green reveal > red mistake > dimmed rest.
+    // Nothing ducks away until the learner presses Next.
+    const chosenEl = ctx.lastHitEl;
+    const correctEl = feedback.correct ? null : findCorrectTarget(feedback);
     const moles = [...document.querySelectorAll('#yard .mole')];
+
     moles.forEach((mole) => {
-      const bubble = mole.querySelector('.mole__bubble');
-      const value = bubble ? bubble.textContent : '';
-      const isChosen = mole === ctx.lastHitEl ||
-        String(value) === String(feedback.learnerAnswer) ||
-        (ctx.question && ctx.question.type === 'correct_incorrect' && mole.classList.contains('is-hit'));
-      if (isChosen) {
+      if (mole === chosenEl) {
         mole.classList.add('is-hit');
-        if (feedback.correct) playCorrectReaction(mole, feedback.streak || 0);
-        else playWrongReaction(mole, feedback.lives !== undefined ? feedback.lives : 1);
-        setTimeout(() => mole.classList.add('is-down'), feedback.correct ? 760 : 1150);
-      } else {
+        if (feedback.correct) {
+          playCorrectReaction(mole, feedback.streak || 0);
+          setTimeout(() => mole.classList.add('is-down'), 560);
+        } else {
+          mole.classList.add('is-wrong');
+          addMoleMark(mole, 'x');
+          playWrongReaction(mole, feedback.lives !== undefined ? feedback.lives : 1);
+          // no is-down: the learner must keep seeing what they chose
+        }
+      } else if (correctEl && mole === correctEl) {
+        // green lands just after the red hit so the eye travels
+        // "my mistake" -> "the correct answer"
+        setTimeout(() => revealCorrectTarget(mole), REVEAL_DELAY.correctTarget);
+      } else if (feedback.correct) {
         mole.classList.add('is-dim');
         setTimeout(() => mole.classList.add('is-down'), 260);
+      } else {
+        mole.classList.add('is-faded'); // clearly secondary, still visible
       }
     });
 
@@ -1864,13 +1933,24 @@
       // e.g. keyboard-submitted fallback paddles).
       HammerCursor.impact(() => {
         markAnswer(feedback);
-        showFeedback(feedback);
         Sound.play(feedback.correct ? "correct" : "wrong");
         if (feedback.pointsAwarded > 0) popupScore("+" + feedback.pointsAwarded, feedback.correct);
         if (!feedback.correct) popupScore("−1 ♥", false, true);
-        const delay = feedback.correct ? FEEDBACK_DELAY.correct : FEEDBACK_DELAY.wrong;
-        engine.advanceQuestion(delay);
-        HammerCursor.sync(); // feedback card is up: back to a normal cursor
+        if (feedback.correct) {
+          showFeedback(feedback);
+          engine.advanceQuestion(FEEDBACK_DELAY.correct);
+        } else {
+          // Wrong answers teach: the green correct-target reveal (scheduled
+          // inside markAnswer) lands first and the correction card follows
+          // once it has settled. Nothing auto-advances — Next is learner-
+          // driven, so the correct sentence stays readable as long as needed.
+          setTimeout(() => {
+            if (ctx.screen !== "game" || !ctx.questionLocked) return;
+            showFeedback(feedback);
+            HammerCursor.sync(); // card is up: back to a normal cursor for Next
+          }, REVEAL_DELAY.feedbackCard);
+        }
+        HammerCursor.sync(); // during the reveal the hammer stays the cursor
       });
     });
 
@@ -1950,13 +2030,17 @@
       ctx.pendingResult = result;
       const levelProgress = engine.getLevelProgress(result.levelId);
       if (result.passed && levelProgress.completed) ctx.levelJustCompleted = result.levelId;
-      // Let the last feedback card breathe before switching screens.
+      // Let the last feedback card breathe before switching screens. Losing
+      // the last life waits longer so the wrong-answer reveal (green correct
+      // target + correction card) can actually be read before the results.
       setTimeout(() => {
         if (ctx.pendingResult === result && ctx.screen === "game") {
           hideFeedback();
           renderResults(result);
         }
-      }, result.reason === "no_lives" || result.reason === "timeout" ? 700 : 1200);
+      }, result.reason === "no_lives"
+        ? REVEAL_DELAY.failScreen
+        : result.reason === "timeout" ? 700 : 1200);
     });
 
     engine.on(E.CHALLENGE_ABORTED, () => {
@@ -2188,11 +2272,12 @@
     // Warm the Adventure Map artwork this device class will actually show,
     // so the map never flashes the wrong background first.
     warmMapArt(mapTierFor(window.innerWidth, window.innerHeight));
+    const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
     Object.values(PRAIRIE_DOG_ASSETS.neutral)
       .concat(Object.values(PRAIRIE_DOG_ASSETS.correct))
       .concat(Object.values(PRAIRIE_DOG_ASSETS.wrong))
-      .concat([HAMMER_URL, // ready before the first hover / first whack
-               'assets/images/mascots/prairie-dog-hero.png']) // intro hero
+      .concat(finePointer ? [HAMMER_URL] : []) // desktop only: ready before the first hover
+      .concat(['assets/images/mascots/prairie-dog-hero.png']) // intro hero
       .forEach((src) => { const img = new Image(); img.src = src; });
   }
 
