@@ -1297,20 +1297,37 @@
 
   // Pick holes whose estimated mascot + bubble boxes never collide and stay
   // out of the instruction (top) and feedback (bottom) safe zones.
-  function pickWaveHoles(tier, count, fw, fh, texts) {
+  // opts.compact  — single-word option chips (far smaller than sentences)
+  // opts.relaxTop — bubbles may cross the instruction zone when the field
+  //                 otherwise cannot host every target. Used only for option
+  //                 waves: dropping an option by position could drop the
+  //                 engine's correct answer, leaving the wrong-answer reveal
+  //                 with no target to highlight.
+  function pickWaveHoles(tier, count, fw, fh, texts, opts) {
     const layout = HOLE_LAYOUTS[tier];
+    const compact = !!(opts && opts.compact);
+    const relaxTop = !!(opts && opts.relaxTop);
     const vw = window.innerWidth;
     const short = fh < 420;
     const fontPx = clampNum(15, 1.25 * vw / 100, 22);
     const capW = short ? Math.min(320, 40 * vw / 100) : (tier === 'mobile' ? 38 * vw / 100 : Math.min(320, 27 * vw / 100));
     // estimate each sentence's real rendered bubble width from its text
     const estW = texts && texts.length
-      ? texts.map((t) => Math.max(92, Math.min(capW, String(t).length * fontPx * 0.52 + 26)))
+      ? texts.map((t) => Math.max(compact ? 64 : 92, Math.min(capW, String(t).length * fontPx * 0.52 + (compact ? 18 : 26))))
       : Array.from({ length: count }, () => capW);
-    const bubbleH = short ? 58 : (tier === 'mobile' ? 88 : 78);
-    const moleW = short
-      ? clampNum(64, 15 * fh / 100, 110)
-      : tier === 'mobile' ? clampNum(88, 27 * vw / 100, 122) : clampNum(105, 12.5 * vw / 100, 180);
+    const bubbleH = compact ? 46 : (short ? 58 : (tier === 'mobile' ? 88 : 78));
+    // Match the RENDERED CSS sizes (.mole width clamps) so collision checks
+    // never underestimate; word chips render smaller via .mole--word.
+    const moleW = compact
+      ? clampNum(64, 20 * vw / 100, 104)
+      : short
+        ? clampNum(64, 15 * fh / 100, 110)
+        : tier === 'mobile' ? clampNum(98, 30 * vw / 100, 138) : clampNum(116, 14.5 * vw / 100, 200);
+    // Relaxed mode tolerates slight box overlap: stacked dogs in different
+    // holes read naturally and beat dropping an option (and with it possibly
+    // the engine's correct answer) on a tight field.
+    const pad = relaxTop ? moleW * 0.22 : 0;
+    const shrink = (b) => ({ l: b.l + pad, r: b.r - pad, t: b.t + pad, b: b.b - pad });
     // measure the REAL instruction card so bubbles never cross into it
     let topLimit = short ? 58 : 92;
     const instr = document.querySelector('#instruction');
@@ -1331,12 +1348,23 @@
       const moleTop = y - moleW * 1.04;
       return {
         hole: h,
+        pos: p, // field-space % — spawn code positions the mole from here
         mole: { l: x - moleW / 2, t: moleTop, r: x + moleW / 2, b: y },
         bubble: { l: x - w / 2, t: moleTop - 12 - bubbleH, r: x + w / 2, b: moleTop },
       };
     };
 
     const widths = estW.slice().sort((a, b) => b - a); // place widest first
+    // Most complete spread across all attempts. An incomplete greedy pass must
+    // NEVER return early: option waves require every target placed (dropping
+    // one by position could drop the engine's correct answer).
+    let best = null;
+    const remember = (cands) => { if (cands.length && (!best || cands.length > best.length)) best = cands; };
+    const commit = (cands) => {
+      ctx.lastWaveSig = cands.map((c) => c.hole.x + '/' + c.hole.y).sort().join('|');
+      ctx.lastHoleKey = cands[0].hole;
+      return cands;
+    };
     for (let attempt = 0; attempt < 16; attempt++) {
       const order = shuffleList(layout.top.concat(layout.bottom));
       const chosen = [];
@@ -1345,36 +1373,63 @@
         const w = widths[chosen.length];
         const cand = boxesOf(h, w);
         if (!cand) continue;
-        if (cand.bubble.t < topLimit) continue;
+        // Normal mode: the whole bubble clears the instruction. Relaxed mode:
+        // only the mascot body must clear it — the bubble may overlap.
+        if (relaxTop ? cand.mole.t < topLimit : cand.bubble.t < topLimit) continue;
         // Mole must stay inside the field; a tall bottom margin is not needed
         // because every mole ducks into its hole before feedback appears.
         if (cand.mole.b > fh - (short ? 26 : 44)) continue;
         let ok = true;
         for (const c of chosen) {
-          if (intersects(cand.bubble, c.bubble) || intersects(cand.mole, c.mole) ||
-              intersects(cand.bubble, c.mole) || intersects(cand.mole, c.bubble)) { ok = false; break; }
+          const a = relaxTop ? { mole: shrink(cand.mole), bubble: shrink(cand.bubble) } : cand;
+          const b = relaxTop ? { mole: shrink(c.mole), bubble: shrink(c.bubble) } : c;
+          if (intersects(a.bubble, b.bubble) || intersects(a.mole, b.mole) ||
+              intersects(a.bubble, b.mole) || intersects(a.mole, b.bubble)) { ok = false; break; }
         }
         if (ok) chosen.push(cand);
       }
       if (!chosen.length) continue;
+      if (chosen.length < count) { remember(chosen); continue; }
       const sig = chosen.map((c) => c.hole.x + '/' + c.hole.y).sort().join('|');
-      if (sig === ctx.lastWaveSig && attempt < 12) continue;
+      if (sig === ctx.lastWaveSig && attempt < 12) { remember(chosen); continue; }
       if (sig === ctx.lastWaveSig && count > 1) {
         // geometrically forced repeat (e.g. only one valid spread on a short
         // field): try one target fewer for a visibly different pattern
         const smaller = chosen.slice(0, count - 1);
-        if (smaller.length) {
-          ctx.lastWaveSig = smaller.map((c) => c.hole.x + '/' + c.hole.y).sort().join('|');
-          ctx.lastHoleKey = smaller[0].hole;
-          return smaller;
-        }
+        if (smaller.length) return commit(smaller);
       }
-      ctx.lastWaveSig = sig;
-      ctx.lastHoleKey = chosen[0].hole;
-      return chosen;
+      return commit(chosen);
     }
+    if (compact && count > 1 && (!best || best.length < count)) {
+      // Word options that cannot all fit the painted holes (e.g. phones, where
+      // a bottom-row dog's bubble always reaches into the top-row dog's box):
+      // fan them across a SINGLE ground line so every option stays selectable —
+      // dropping one by position could drop the engine's correct answer and
+      // leave the wrong-answer reveal with no target.
+      const anchor = boxesOf(layout.bottom[0] || layout.top[0], capW);
+      const y = anchor ? anchor.pos.y : 65;
+      const fan = [];
+      for (let i = 0; i < count; i++) {
+        const x = count === 1 ? 50 : 18 + 64 * i / (count - 1); // 18%..82% of the field
+        const w = widths[i] || capW;
+        const cx = x / 100 * fw;
+        const cy = y / 100 * fh;
+        const moleTop = cy - moleW * 1.04;
+        fan.push({
+          hole: { x, y, fan: true },
+          pos: { x, y },
+          mole: { l: cx - moleW / 2, t: moleTop, r: cx + moleW / 2, b: cy },
+          bubble: { l: cx - w / 2, t: moleTop - 12 - bubbleH, r: cx + w / 2, b: moleTop },
+        });
+      }
+      ctx.lastWaveSig = "fan" + count;
+      ctx.lastHoleKey = fan[0].hole;
+      return fan;
+    }
+    if (best) return commit(best);
     // Last resort: the spread top row.
-    const fallback = layout.top.slice(0, count).map((h, i) => boxesOf(h, widths[i] || capW));
+    const fallback = layout.top.slice(0, count).map((h, i) => boxesOf(h, widths[i] || capW)).filter(Boolean);
+    if (!fallback.length) return commit(best || []);
     ctx.lastWaveSig = fallback.map((c) => c.hole.x + '/' + c.hole.y).sort().join('|');
     ctx.lastHoleKey = fallback[0].hole;
     return fallback;
@@ -1396,8 +1451,7 @@
     }
     usable.forEach((item, i) => {
       const box = boxes[i];
-      const p = mapHole(box.hole, tier, fw, fh);
-      const mole = makeMole(p, {
+      const mole = makeMole(box.pos, {
         bubble: item.text,
         index: i,
         label: item.text,
@@ -1423,24 +1477,30 @@
   }
 
   // Option questions: one mascot per option, popping from the widest-spaced
-  // row of the current artwork's holes. Unused painted holes stay empty. The
-  // engine guarantees correctAnswer is among the options, and options stay in
-  // the engine's per-session order, so the correct target is always spawned.
+  // row of the current artwork's holes. Unused painted holes stay empty.
+  // EVERY option is always spawned: the engine guarantees its correctAnswer
+  // is among the options, so dropping one by position could hide the correct
+  // target — word chips use compact estimates, and if the field still cannot
+  // host them collision-free, placement relaxes the instruction safe-zone
+  // rather than dropping an option.
   function spawnOptionMoles(yard, tier, q) {
     const options = Array.isArray(q.options) ? q.options : [];
     const fw = yard.clientWidth || 1;
     const fh = yard.clientHeight || 1;
-    const boxes = pickWaveHoles(tier, options.length, fw, fh, options.map(String));
+    let boxes = pickWaveHoles(tier, options.length, fw, fh, options.map(String), { compact: true });
+    if (boxes.length < options.length) {
+      boxes = pickWaveHoles(tier, options.length, fw, fh, options.map(String), { compact: true, relaxTop: true });
+    }
     const usable = Math.min(options.length, boxes.length);
     for (let i = 0; i < usable; i++) {
       const box = boxes[i];
       const option = options[i];
-      const p = mapHole(box.hole, tier, fw, fh);
-      const mole = makeMole(p, {
+      const mole = makeMole(box.pos, {
         bubble: String(option),
         index: i,
         label: 'Answer: ' + option,
         delay: i * 70,
+        word: true,
         onTap: () => submitClaim(option, mole),
       });
       ctx.activeMoles.push({ el: mole, text: String(option) });
@@ -1454,7 +1514,7 @@
     // neutral art never reveals anything about the sentence.
     const personality = NEUTRAL_KEYS[(ctx.moleIndex + (options.index || 0)) % NEUTRAL_KEYS.length];
     const mole = el("button", {
-      class: "mole",
+      class: "mole" + (options.word ? " mole--word" : ""),
       // bottom:(100-y)% pins the mascot's feet at the hole centre line
       style: "left:" + pos.x + "%; bottom:" + (100 - pos.y) + "%",
       "aria-label": options.label,
