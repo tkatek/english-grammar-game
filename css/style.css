@@ -372,6 +372,9 @@ ul { list-style: none; }
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* The mascot bleeds off the true bottom edge (artwork is bottom-cropped);
+     safe-area insets are handled per-element (brand) instead of as a band. */
+  padding-bottom: 0;
 }
 
 /* ---- Painted fantasy-landscape background (supplied artwork) ---- */
@@ -438,7 +441,7 @@ ul { list-style: none; }
   column-gap: clamp(16px, 3.5vw, 56px);
   width: min(100%, 1320px);
   margin-inline: auto;
-  padding: clamp(12px, 2.5vh, 24px) clamp(16px, 4vw, 48px);
+  padding: clamp(12px, 2.5vh, 24px) clamp(16px, 4vw, 48px) 0; /* no dead band under the mascot */
   overflow-y: auto;
   overflow-x: clip;
 }
@@ -462,7 +465,11 @@ ul { list-style: none; }
   gap: clamp(10px, 1.8vh, 18px);
 }
 
-/* RIGHT column: the hero Prairie Dog — large, transparent, anchored low */
+/* RIGHT column: the hero Prairie Dog — large, transparent, anchored to the
+   very bottom edge. The artwork is hard-cropped at its own bottom (no feet),
+   so the character must BLEED a few px past the fold and get clipped there:
+   the crop line then always sits below the visible edge and the dog reads as
+   standing at the bottom of the scene instead of floating above it. */
 .home-mascot-area {
   grid-area: masc;
   position: relative;
@@ -470,10 +477,10 @@ ul { list-style: none; }
   min-height: 0;
   align-self: stretch; /* always fill both grid rows so height caps resolve */
   display: flex;
-  align-items: flex-end;   /* grounded: no air below the feet */
+  align-items: flex-end;   /* grounded: no air below the character */
   justify-content: flex-end; /* bottom-right anchor on desktop */
-  padding-bottom: 6px; /* idle micro-rotation swings corners ~3px — never clipped */
-  overflow: clip; /* decorative glow/shadow never expand the page */
+  padding-bottom: 0; /* the bleed handles idle swing; keep the fold flush */
+  overflow: clip; /* the bleed + decorative glow/shadow never expand the page */
 }
 
 /* soft magical glow behind the character — subtle, never a visible circle */
@@ -497,12 +504,12 @@ ul { list-style: none; }
   50% { opacity: 1; transform: scale(1.045); }
 }
 
-/* soft contact shadow directly under the feet — no offset, no gap */
+/* soft contact shadow right at the floor line — no offset, no gap */
 .home-mascot-area::after {
   content: "";
   position: absolute;
   right: clamp(0px, 2vw, 24px);
-  bottom: -4px;
+  bottom: 0;
   width: 52%;
   height: 20px;
   border-radius: 50%;
@@ -518,14 +525,19 @@ ul { list-style: none; }
 
 .home-mascot {
   position: relative;
-  /* Height-driven hero sizing: as tall as the hero allows (capped), scaled
-   * down by max-width if the column is narrower. The box can never exceed
-   * its area in either axis, and the aspect ratio is preserved — the
-   * character is big, bottom-anchored, and never cropped. */
+  /* Grounded hero sizing: the box is the full column height PLUS a 16px bleed
+   * that margin-bottom pushes past the fold, so the artwork's hard bottom
+   * crop is always clipped below the visible edge — even mid idle-lift
+   * (−8px) and micro-rotation. object-position pins the contained art to the
+   * box bottom so letterbox slack can never open a gap under the character.
+   * The 780px cap (was 680) gives a stronger presence on tall screens. */
   width: auto;
-  height: min(100%, 680px);
+  height: calc(100% + 16px);
+  max-height: 780px;
   max-width: 100%;
+  margin-bottom: -16px; /* park the crop line below the fold */
   object-fit: contain;
+  object-position: center bottom;
   filter: drop-shadow(0 24px 36px rgba(0, 0, 0, 0.5));
   animation: mascot-idle 4.5s ease-in-out infinite, mascot-hero-in 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -720,26 +732,33 @@ ul { list-style: none; }
 }
 .home-tools .icon-btn:active { transform: translateY(1px); }
 
+/* Brand wordmark: absolutely pinned to the bottom edge, centered. It used to
+   be a flow grid row, which reserved a dead band under the mascot column. */
 .home-brand {
-  position: relative;
-  z-index: 1;
+  position: absolute;
+  left: 50%;
+  bottom: calc(6px + var(--sab));
+  transform: translateX(-50%);
+  z-index: 2;
+  width: max-content;
+  margin: 0;
   text-align: center;
   font-size: 0.72rem;
   font-weight: 700;
   color: rgba(38, 66, 108, 0.55);
   letter-spacing: 0.08em;
-  padding-bottom: calc(8px + var(--sab));
-  flex-shrink: 0;
 }
 
 /* ---- RESPONSIVE ---- */
 
-/* Tablet portrait / narrow desktop: stack copy -> mascot -> actions */
+/* Tablet portrait / phone: stack copy -> actions -> mascot. The mascot row is
+   last and takes all remaining height, so the character is bottom-anchored
+   and bleeds off the fold — no dead space below it, no mid-air crop line. */
 @media (max-width: 900px) {
   .home-shell {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr);
-    grid-template-areas: "copy" "masc" "side";
+    grid-template-rows: auto auto minmax(170px, 1fr);
+    grid-template-areas: "copy" "side" "masc";
     row-gap: clamp(8px, 2vh, 16px);
     text-align: center;
   }
@@ -747,27 +766,35 @@ ul { list-style: none; }
   .home-side { align-items: center; }
   .home-mascot-area {
     justify-content: center; /* centered in the stacked layout */
-    padding-block: 6px 10px;
+    padding: 0;
   }
   .home-mascot-area__aura,
   .home-mascot-area::after { right: auto; left: 50%; transform: translateX(-50%); }
   .home-mascot-area__aura { animation: none; }
   .home-mascot-area::after { animation: none; width: 46%; }
-  .home-mascot { width: clamp(210px, 60vw, 330px); height: auto; max-height: min(340px, 36vh); }
+  /* Height-driven like desktop (bleed + bottom object-position inherit);
+     max-width keeps the dog elegant on wide tablets and phones. */
+  .home-mascot { max-height: none; max-width: min(86vw, 400px); }
   .home-cta { max-width: 340px; }
+  /* The centered wordmark sits over the dog's dark hoodie here — give it a
+     light watermark treatment instead of the desktop navy-on-grass. */
+  .home-brand {
+    color: rgba(255, 255, 255, 0.82);
+    text-shadow: 0 1px 5px rgba(8, 16, 34, 0.65);
+  }
 }
 
-/* Phone: badge/title/sub -> mascot -> stats/buttons */
+/* Phone: badge/title/sub -> stats/buttons -> mascot (bottom, centered) */
 @media (max-width: 560px) {
   .home-shell {
-    padding: clamp(10px, 2vh, 20px) 16px;
+    padding: clamp(10px, 2vh, 20px) 16px 0;
     row-gap: 6px;
   }
   .home-copy { gap: 6px; }
   .home-badge { font-size: 0.62rem; padding: 4px 10px; }
   .home-title { font-size: clamp(1.9rem, 8vw, 2.6rem); -webkit-text-stroke: 5px #1E5AA8; }
   .home-sub { font-size: 0.86rem; max-width: 26ch; }
-  .home-mascot { width: clamp(220px, 64vw, 330px); height: auto; max-height: min(330px, 40vh); }
+  .home-mascot { max-width: min(80vw, 350px); }
   .home-cta { max-width: 100%; }
   .btn-home-primary { min-height: 54px; font-size: 1rem; padding: 0 24px; }
   .btn-home-secondary { min-height: 44px; font-size: 0.92rem; }
@@ -775,10 +802,10 @@ ul { list-style: none; }
   .home-stats .stat-chip { font-size: 0.78rem; padding: 5px 11px; }
 }
 
-/* Short screens (landscape phones): two columns, compact mascot */
+/* Short screens (landscape phones): same stack, compact mascot */
 @media (max-height: 560px) {
-  .home-shell { padding: 8px 16px; }
-  .home-mascot { max-height: 190px; }
+  .home-shell { padding: 8px 16px 0; grid-template-rows: auto auto minmax(120px, 1fr); }
+  .home-mascot { max-height: 200px; }
   .home-sub { display: none; }
   .home-cta { flex-direction: row; }
   .home-cta .btn-home-primary { flex: 1; min-height: 46px; }
