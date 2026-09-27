@@ -477,6 +477,11 @@
       void root.offsetWidth; // restart the keyframes on rapid swings
       root.classList.add("is-whacking", "is-locked");
       locked = true;
+      // Desktop hammer audio: whoosh on the swing, soft impact exactly when
+      // the head lands (HAMMER_IMPACT_MS). Touch devices never reach here —
+      // mode only exists for (hover:hover)+(pointer:fine) pointers.
+      window.grammarQuestAudio.play("hammerSwing");
+      setTimeout(() => window.grammarQuestAudio.play("hammerImpact"), HAMMER_IMPACT_MS);
       setTimeout(() => {
         if (root) root.classList.remove("is-whacking");
       }, HAMMER_SWING_MS);
@@ -1761,7 +1766,7 @@
     const next = engine.getNextUnlockedActivity();
 
     if (result.passed) {
-      Sound.play("complete");
+      window.grammarQuestAudio.play("challengeComplete");
       const medal = result.stars >= 3 ? "medal-3" : result.stars === 2 ? "medal-2" : "medal-1";
       body.appendChild(el("div", { class: "results__celebrate" }, [
         el("img", { src: PRAIRIE_DOG_ASSETS.correct.celebrate, alt: "" }),
@@ -1771,7 +1776,12 @@
       ]));
       body.appendChild(el("h2", { class: "results__title", text: "Challenge Complete!" }));
       body.appendChild(starsRow(result.stars, result.maxStars || 3, true));
+      // Star chimes staggered with the pop-in animation, never stacked.
+      for (let s = 0; s < result.stars; s++) {
+        window.grammarQuestAudio.play("starEarned", { delay: 320 + s * 140, volume: 0.22 });
+      }
     } else {
+      window.grammarQuestAudio.play("challengeFailed");
       body.appendChild(el('div', { class: 'results__mascot' }, [
         el('img', { src: PRAIRIE_DOG_ASSETS.wrong.crying, alt: '' }),
       ]));
@@ -1912,6 +1922,7 @@
     const progress = engine.getLevelProgress(result.levelId);
     const level = engine.getLevel(result.levelId);
     const fullGame = outcome === "game";
+    window.grammarQuestAudio.play("levelComplete");
 
     body.appendChild(el("div", { class: "level-complete__banner" }, [
       el("img", { src: fullGame ? REWARDS + "trophy-gold.png" : REWARDS + "banner.png", alt: "" }),
