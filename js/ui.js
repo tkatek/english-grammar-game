@@ -157,7 +157,6 @@
   const REVEAL_DELAY = { correctTarget: 140, feedbackCard: 420, failScreen: 2400 };
   const STREAK_MILESTONES = [3, 5, 10];
   const SETTINGS_KEY = "grammar-quest:ui-settings:v1";
-  const SOUND_NAMES = ["correct", "wrong", "streak", "timer-low", "complete", "unlock", "click"];
 
   const REWARDS = "assets/images/rewards/";
   const MASCOTS = "assets/images/mascots/";
@@ -292,26 +291,25 @@
     document.body.classList.toggle("reduce-motion", !uiSettings.animations);
   }
 
-  /* ------------------------------- sound ------------------------------- */
-
+  /* ------------------------------- sound -------------------------------
+   * Thin adapter over the central audio manager (js/audio.js). Legacy
+   * short names map to the production sound set; every call is a no-op
+   * if audio failed to load — gameplay never depends on sound. */
+  const SOUND_ALIASES = {
+    click: "uiClick",
+    correct: "answerCorrect",
+    wrong: "answerWrong",
+    streak: "streak",
+    "timer-low": "timerWarning",
+    complete: "challengeComplete",
+    unlock: "levelUnlock",
+  };
   const Sound = {
-    available: new Set(),
-    async init() {
-      // Only enable hooks whose files actually exist — no invented 404s.
-      await Promise.all(SOUND_NAMES.map(async (name) => {
-        try {
-          const res = await fetch("assets/sounds/" + name + ".mp3", { method: "HEAD" });
-          if (res.ok) this.available.add(name);
-        } catch (err) { /* missing file: hook stays disabled */ }
-      }));
-    },
     play(name) {
-      if (!uiSettings.sound || !this.available.has(name)) return;
       try {
-        const audio = new Audio("assets/sounds/" + name + ".mp3");
-        audio.volume = 0.5;
-        audio.play().catch(() => { /* autoplay policy: ignore */ });
-      } catch (err) { /* never break gameplay for audio */ }
+        const key = SOUND_ALIASES[name] || name;
+        window.grammarQuestAudio.play(key);
+      } catch (err) { /* audio is an enhancement layer — never throw */ }
     },
   };
 
@@ -1464,6 +1462,8 @@
       ctx.activeMoles.push({ el: mole, text: item.text, satisfies: item.satisfies === true });
       yard.appendChild(mole);
     });
+    // One soft pop per wave — never N identical pops for N simultaneous dogs.
+    Sound.play("targetPop");
   }
 
   // Reduce a wave to `count` targets without ever dropping the target that
@@ -1982,6 +1982,7 @@
       ctx.gameCompleted = false;
       ctx.levelJustCompleted = null;
       setupGameScreen(payload);
+      Sound.play("challengeStart");
     });
 
     engine.on(E.QUESTION_CHANGED, (payload) => { renderQuestion(payload); });
@@ -2053,6 +2054,8 @@
             lostHeart.classList.add("heart--empty");
           }, 420);
         }
+        // Sequenced cue: wrong-answer sound lands first, heart pop follows.
+        window.grammarQuestAudio.play("heartLost", { delay: 150 });
       }
     });
 
@@ -2388,6 +2391,8 @@
     wireDom();
     preload();
     boot();
-    Sound.init();
+    try { window.grammarQuestAudio.preload(); } catch (err) {
+      console.warn("[GrammarQuest audio] manager missing — game runs silent");
+    }
   });
 })();

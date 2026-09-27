@@ -733,7 +733,9 @@ ul { list-style: none; }
 .home-tools .icon-btn:active { transform: translateY(1px); }
 
 /* Brand wordmark: absolutely pinned to the bottom edge, centered. It used to
-   be a flow grid row, which reserved a dead band under the mascot column. */
+   be a flow grid row, which reserved a dead band under the mascot column.
+   Light watermark treatment — the scene's bottom scrim is dark, so navy text
+   would disappear; white + soft halo reads cleanly over grass and hoodie. */
 .home-brand {
   position: absolute;
   left: 50%;
@@ -745,8 +747,9 @@ ul { list-style: none; }
   text-align: center;
   font-size: 0.72rem;
   font-weight: 700;
-  color: rgba(38, 66, 108, 0.55);
+  color: rgba(255, 255, 255, 0.82);
   letter-spacing: 0.08em;
+  text-shadow: 0 1px 5px rgba(8, 16, 34, 0.65);
 }
 
 /* ---- RESPONSIVE ---- */
@@ -776,12 +779,6 @@ ul { list-style: none; }
      max-width keeps the dog elegant on wide tablets and phones. */
   .home-mascot { max-height: none; max-width: min(86vw, 400px); }
   .home-cta { max-width: 340px; }
-  /* The centered wordmark sits over the dog's dark hoodie here — give it a
-     light watermark treatment instead of the desktop navy-on-grass. */
-  .home-brand {
-    color: rgba(255, 255, 255, 0.82);
-    text-shadow: 0 1px 5px rgba(8, 16, 34, 0.65);
-  }
 }
 
 /* Phone: badge/title/sub -> stats/buttons -> mascot (bottom, centered) */
