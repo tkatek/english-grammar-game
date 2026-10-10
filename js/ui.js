@@ -1322,10 +1322,18 @@
     // Match the RENDERED CSS sizes (.mole width clamps) so collision checks
     // never underestimate; word chips render smaller via .mole--word.
     const moleW = compact
-      ? clampNum(64, 20 * vw / 100, 104)
+      ? tier === 'desktop' && !short
+        ? clampNum(150, 9 * vw / 100, 190)
+        : tier === 'tablet'
+          ? clampNum(110, 15 * vw / 100, 150)
+          : clampNum(82, 24 * vw / 100, 118)
       : short
         ? clampNum(64, 15 * fh / 100, 110)
-        : tier === 'mobile' ? clampNum(98, 30 * vw / 100, 138) : clampNum(116, 14.5 * vw / 100, 200);
+        : tier === 'mobile'
+          ? clampNum(98, 30 * vw / 100, 138)
+          : tier === 'desktop'
+            ? clampNum(180, 12 * vw / 100, 240)
+            : clampNum(116, 14.5 * vw / 100, 200);
     // Relaxed mode tolerates slight box overlap: stacked dogs in different
     // holes read naturally and beat dropping an option (and with it possibly
     // the engine's correct answer) on a tight field.

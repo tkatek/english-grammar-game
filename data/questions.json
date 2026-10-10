@@ -2,7 +2,7 @@
   "game": {
     "id": "grammar_quest",
     "title": "Grammar Quest",
-    "totalLevels": 20,
+    "totalLevels": 4,
     "defaultSettings": {
       "lives": 3,
       "passingPercentage": 70,
@@ -29,6 +29,7 @@
           "type": "correct_sentence",
           "difficulty": "easy",
           "settings": {
+            "questionCount": 4,
             "timeLimitSeconds": 90,
             "lives": 3,
             "passingPercentage": 70,
@@ -79,6 +80,26 @@
               "correctAnswer": "Tom watches TV at night.",
               "correction": "Tom watches TV at night.",
               "explanation": "With Tom (he), watch becomes watches."
+            },
+            {
+              "id": 5,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "The bus arrives at seven.",
+              "isCorrect": true,
+              "correctAnswer": "The bus arrives at seven.",
+              "correction": null,
+              "explanation": "The bus is singular, so arrive becomes arrives."
+            },
+            {
+              "id": 6,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "Anna and Leo walks to school.",
+              "isCorrect": false,
+              "correctAnswer": "Anna and Leo walk to school.",
+              "correction": "Anna and Leo walk to school.",
+              "explanation": "A plural subject takes the base verb: walk."
             }
           ]
         },
@@ -88,6 +109,7 @@
           "type": "incorrect_sentence",
           "difficulty": "easy",
           "settings": {
+            "questionCount": 4,
             "timeLimitSeconds": 90,
             "lives": 3,
             "passingPercentage": 70,
@@ -138,6 +160,26 @@
               "correctAnswer": "Sara studies English every day.",
               "correction": null,
               "explanation": "Study changes to studies with he, she and it."
+            },
+            {
+              "id": 5,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "Does your teacher gives homework?",
+              "isCorrect": false,
+              "correctAnswer": "Does your teacher give homework?",
+              "correction": "Does your teacher give homework?",
+              "explanation": "After does, use the base verb give."
+            },
+            {
+              "id": 6,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "The shop closes at nine.",
+              "isCorrect": true,
+              "correctAnswer": "The shop closes at nine.",
+              "correction": null,
+              "explanation": "The singular subject shop takes closes."
             }
           ]
         },
@@ -147,6 +189,7 @@
           "type": "mixed",
           "difficulty": "medium",
           "settings": {
+            "questionCount": 4,
             "timeLimitSeconds": 120,
             "lives": 3,
             "passingPercentage": 80,
@@ -208,7 +251,188 @@
               "correctAnswer": "She doesn't like coffee.",
               "correction": "She doesn't like coffee.",
               "explanation": "Use doesn't + base verb with he, she and it."
+            },
+            {
+              "id": 5,
+              "type": "missing_word",
+              "prompt": "Choose the missing word.",
+              "text": "The baby ___ when it is hungry.",
+              "options": ["cry", "cries", "crying"],
+              "correctAnswer": "cries",
+              "correction": "The baby cries when it is hungry.",
+              "explanation": "A consonant + y changes to -ies for a singular subject."
+            },
+            {
+              "id": 6,
+              "type": "multiple_choice",
+              "prompt": "Choose the correct question.",
+              "options": ["Do she speak French?", "Does she speaks French?", "Does she speak French?"],
+              "correctAnswer": "Does she speak French?",
+              "correction": "Does she speak French?",
+              "explanation": "Use does + subject + base verb in present-simple questions."
             }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Past Simple",
+      "grammarTopic": "Past Simple: regular and irregular verbs",
+      "description": "Talk about finished actions and choose the correct past form.",
+      "difficulty": "elementary",
+      "challenges": [
+        {
+          "id": 1,
+          "title": "Yesterday's Actions",
+          "type": "missing_word",
+          "difficulty": "easy",
+          "settings": { "questionCount": 4, "timeLimitSeconds": 85, "lives": 3, "passingPercentage": 70, "maxStars": 3, "starThresholds": { "oneStar": 70, "twoStars": 85, "threeStars": 100 } },
+          "questions": [
+            { "id": 1, "type": "missing_word", "prompt": "Choose the past form.", "text": "We ___ a film last night.", "options": ["watch", "watched", "watching"], "correctAnswer": "watched", "correction": "We watched a film last night.", "explanation": "Regular verbs usually add -ed in the past simple." },
+            { "id": 2, "type": "missing_word", "prompt": "Choose the past form.", "text": "Maya ___ to the market yesterday.", "options": ["go", "went", "gone"], "correctAnswer": "went", "correction": "Maya went to the market yesterday.", "explanation": "Went is the irregular past form of go." },
+            { "id": 3, "type": "missing_word", "prompt": "Choose the past form.", "text": "I ___ my keys this morning.", "options": ["lose", "lost", "losing"], "correctAnswer": "lost", "correction": "I lost my keys this morning.", "explanation": "Lost is the irregular past form of lose." },
+            { "id": 4, "type": "missing_word", "prompt": "Choose the past form.", "text": "They ___ tennis after school.", "options": ["played", "play", "plays"], "correctAnswer": "played", "correction": "They played tennis after school.", "explanation": "Play becomes played for a finished past action." },
+            { "id": 5, "type": "missing_word", "prompt": "Choose the past form.", "text": "The lesson ___ at ten.", "options": ["begin", "began", "begun"], "correctAnswer": "began", "correction": "The lesson began at ten.", "explanation": "Began is the past-simple form of begin." },
+            { "id": 6, "type": "missing_word", "prompt": "Choose the past form.", "text": "Sam ___ an email to his teacher.", "options": ["sent", "send", "sended"], "correctAnswer": "sent", "correction": "Sam sent an email to his teacher.", "explanation": "Sent is the irregular past form of send." }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Questions and Negatives",
+          "type": "incorrect_sentence",
+          "difficulty": "medium",
+          "settings": { "questionCount": 4, "timeLimitSeconds": 80, "lives": 3, "passingPercentage": 75, "maxStars": 3, "starThresholds": { "oneStar": 75, "twoStars": 90, "threeStars": 100 } },
+          "questions": [
+            { "id": 1, "type": "correct_incorrect", "prompt": "Hit the sentence with a mistake.", "text": "She didn't call me.", "isCorrect": true, "correctAnswer": "She didn't call me.", "correction": null, "explanation": "After didn't, use the base form call." },
+            { "id": 2, "type": "correct_incorrect", "prompt": "Hit the sentence with a mistake.", "text": "Did he went home early?", "isCorrect": false, "correctAnswer": "Did he go home early?", "correction": "Did he go home early?", "explanation": "After did, use the base form go." },
+            { "id": 3, "type": "correct_incorrect", "prompt": "Hit the sentence with a mistake.", "text": "We didn't saw the sign.", "isCorrect": false, "correctAnswer": "We didn't see the sign.", "correction": "We didn't see the sign.", "explanation": "Didn't is followed by the base form see." },
+            { "id": 4, "type": "correct_incorrect", "prompt": "Hit the sentence with a mistake.", "text": "Did they finish the project?", "isCorrect": true, "correctAnswer": "Did they finish the project?", "correction": null, "explanation": "Did + subject + base verb forms a past question." },
+            { "id": 5, "type": "correct_incorrect", "prompt": "Hit the sentence with a mistake.", "text": "I didn't understood the joke.", "isCorrect": false, "correctAnswer": "I didn't understand the joke.", "correction": "I didn't understand the joke.", "explanation": "Use understand, not understood, after didn't." },
+            { "id": 6, "type": "correct_incorrect", "prompt": "Hit the sentence with a mistake.", "text": "Did Anna bring her notebook?", "isCorrect": true, "correctAnswer": "Did Anna bring her notebook?", "correction": null, "explanation": "Bring stays in its base form after did." }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Past Simple Final",
+          "type": "mixed",
+          "difficulty": "medium",
+          "settings": { "questionCount": 4, "timeLimitSeconds": 85, "lives": 3, "passingPercentage": 80, "maxStars": 3, "starThresholds": { "oneStar": 80, "twoStars": 90, "threeStars": 100 } },
+          "questions": [
+            { "id": 1, "type": "multiple_choice", "prompt": "Choose the correct sentence.", "options": ["They buyed a new car.", "They bought a new car.", "They did bought a new car."], "correctAnswer": "They bought a new car.", "correction": "They bought a new car.", "explanation": "Bought is the past form of buy." },
+            { "id": 2, "type": "missing_word", "prompt": "Choose the missing word.", "text": "Where ___ you stay last summer?", "options": ["do", "did", "were"], "correctAnswer": "did", "correction": "Where did you stay last summer?", "explanation": "Use did to ask about a finished past action." },
+            { "id": 3, "type": "correct_incorrect", "prompt": "Choose quickly: correct or incorrect?", "text": "He was tired, so he slept early.", "isCorrect": true, "correctAnswer": "He was tired, so he slept early.", "correction": null, "explanation": "Slept is the correct irregular past form of sleep." },
+            { "id": 4, "type": "multiple_choice", "prompt": "Choose the correct negative.", "options": ["She not visited us.", "She didn't visited us.", "She didn't visit us."], "correctAnswer": "She didn't visit us.", "correction": "She didn't visit us.", "explanation": "Use didn't + base verb." },
+            { "id": 5, "type": "missing_word", "prompt": "Choose the missing word.", "text": "The children ___ very quiet during the test.", "options": ["was", "were", "did"], "correctAnswer": "were", "correction": "The children were very quiet during the test.", "explanation": "Use were with a plural subject." },
+            { "id": 6, "type": "correct_incorrect", "prompt": "Choose quickly: correct or incorrect?", "text": "Did you ate breakfast?", "isCorrect": false, "correctAnswer": "Did you eat breakfast?", "correction": "Did you eat breakfast?", "explanation": "After did, use eat, not ate." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Present Perfect",
+      "grammarTopic": "Present Perfect: experiences and recent results",
+      "description": "Distinguish life experience and unfinished time from a finished past event.",
+      "difficulty": "intermediate",
+      "challenges": [
+        {
+          "id": 1,
+          "title": "Have or Has?",
+          "type": "missing_word",
+          "difficulty": "medium",
+          "settings": { "questionCount": 4, "timeLimitSeconds": 75, "lives": 3, "passingPercentage": 75, "maxStars": 3, "starThresholds": { "oneStar": 75, "twoStars": 90, "threeStars": 100 } },
+          "questions": [
+            { "id": 1, "type": "missing_word", "prompt": "Choose the missing word.", "text": "She ___ finished her homework.", "options": ["have", "has", "is"], "correctAnswer": "has", "correction": "She has finished her homework.", "explanation": "Use has with he, she and it." },
+            { "id": 2, "type": "missing_word", "prompt": "Choose the missing word.", "text": "They ___ never visited Spain.", "options": ["have", "has", "did"], "correctAnswer": "have", "correction": "They have never visited Spain.", "explanation": "Use have with they." },
+            { "id": 3, "type": "missing_word", "prompt": "Choose the participle.", "text": "I have ___ that book twice.", "options": ["read", "reads", "reading"], "correctAnswer": "read", "correction": "I have read that book twice.", "explanation": "Read is the past participle of read; its pronunciation changes." },
+            { "id": 4, "type": "missing_word", "prompt": "Choose the participle.", "text": "Omar has ___ his phone.", "options": ["lose", "lost", "losing"], "correctAnswer": "lost", "correction": "Omar has lost his phone.", "explanation": "Lost is the past participle of lose." },
+            { "id": 5, "type": "missing_word", "prompt": "Choose the participle.", "text": "We have ___ this movie before.", "options": ["see", "saw", "seen"], "correctAnswer": "seen", "correction": "We have seen this movie before.", "explanation": "Seen is the past participle of see." },
+            { "id": 6, "type": "missing_word", "prompt": "Choose the missing word.", "text": "The train ___ already left.", "options": ["have", "has", "was"], "correctAnswer": "has", "correction": "The train has already left.", "explanation": "Train is singular, so use has." }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Perfect or Past?",
+          "type": "multiple_choice",
+          "difficulty": "hard",
+          "settings": { "questionCount": 4, "timeLimitSeconds": 70, "lives": 3, "passingPercentage": 75, "maxStars": 3, "starThresholds": { "oneStar": 75, "twoStars": 90, "threeStars": 100 } },
+          "questions": [
+            { "id": 1, "type": "multiple_choice", "prompt": "Choose the best sentence.", "options": ["I have met her yesterday.", "I met her yesterday.", "I have meet her yesterday."], "correctAnswer": "I met her yesterday.", "correction": "I met her yesterday.", "explanation": "Use past simple with a finished time such as yesterday." },
+            { "id": 2, "type": "multiple_choice", "prompt": "Choose the best sentence.", "options": ["Have you ever ridden a horse?", "Did you ever ridden a horse?", "Have you ever rode a horse?"], "correctAnswer": "Have you ever ridden a horse?", "correction": "Have you ever ridden a horse?", "explanation": "Use present perfect for life experience with ever." },
+            { "id": 3, "type": "multiple_choice", "prompt": "Choose the best sentence.", "options": ["We lived here since 2022.", "We have lived here since 2022.", "We are lived here since 2022."], "correctAnswer": "We have lived here since 2022.", "correction": "We have lived here since 2022.", "explanation": "Use present perfect for a state continuing until now." },
+            { "id": 4, "type": "multiple_choice", "prompt": "Choose the best sentence.", "options": ["He has just arrived.", "He just has arrive.", "He did just arrived."], "correctAnswer": "He has just arrived.", "correction": "He has just arrived.", "explanation": "Just normally goes between has and the past participle." },
+            { "id": 5, "type": "multiple_choice", "prompt": "Choose the best sentence.", "options": ["I haven't finished yet.", "I didn't finished yet.", "I hasn't finished yet."], "correctAnswer": "I haven't finished yet.", "correction": "I haven't finished yet.", "explanation": "Yet commonly appears with a present-perfect negative." },
+            { "id": 6, "type": "multiple_choice", "prompt": "Choose the best sentence.", "options": ["She went to Rabat in 2024.", "She has gone to Rabat in 2024.", "She has went to Rabat in 2024."], "correctAnswer": "She went to Rabat in 2024.", "correction": "She went to Rabat in 2024.", "explanation": "A stated, finished year takes the past simple." }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Present Perfect Final",
+          "type": "mixed",
+          "difficulty": "hard",
+          "settings": { "questionCount": 4, "timeLimitSeconds": 75, "lives": 2, "passingPercentage": 80, "maxStars": 3, "starThresholds": { "oneStar": 80, "twoStars": 90, "threeStars": 100 } },
+          "questions": [
+            { "id": 1, "type": "correct_incorrect", "prompt": "Choose quickly: correct or incorrect?", "text": "She has wrote three emails today.", "isCorrect": false, "correctAnswer": "She has written three emails today.", "correction": "She has written three emails today.", "explanation": "Written is the past participle of write." },
+            { "id": 2, "type": "missing_word", "prompt": "Choose the missing word.", "text": "How long have you ___ English?", "options": ["study", "studied", "studying"], "correctAnswer": "studied", "correction": "How long have you studied English?", "explanation": "Have is followed by a past participle." },
+            { "id": 3, "type": "multiple_choice", "prompt": "Choose the correct sentence.", "options": ["They have been here for two hours.", "They are here since two hours.", "They have been here since two hours."], "correctAnswer": "They have been here for two hours.", "correction": "They have been here for two hours.", "explanation": "Use for with a duration and since with a starting point." },
+            { "id": 4, "type": "correct_incorrect", "prompt": "Choose quickly: correct or incorrect?", "text": "Did you finish the report yet?", "isCorrect": false, "correctAnswer": "Have you finished the report yet?", "correction": "Have you finished the report yet?", "explanation": "In this exercise, yet signals present perfect for an unfinished time." },
+            { "id": 5, "type": "missing_word", "prompt": "Choose the missing word.", "text": "He has lived here ___ March.", "options": ["for", "since", "ago"], "correctAnswer": "since", "correction": "He has lived here since March.", "explanation": "Since introduces the starting point." },
+            { "id": 6, "type": "multiple_choice", "prompt": "Choose the correct sentence.", "options": ["I have never flown before.", "I never have flew before.", "I have never fly before."], "correctAnswer": "I have never flown before.", "correction": "I have never flown before.", "explanation": "Flown is the past participle of fly." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Conditionals & Passive",
+      "grammarTopic": "First and second conditionals, plus the passive voice",
+      "description": "Handle real and imaginary conditions, then recognise who receives an action.",
+      "difficulty": "advanced",
+      "challenges": [
+        {
+          "id": 1,
+          "title": "If This Happens",
+          "type": "multiple_choice",
+          "difficulty": "hard",
+          "settings": { "questionCount": 4, "timeLimitSeconds": 65, "lives": 3, "passingPercentage": 75, "maxStars": 3, "starThresholds": { "oneStar": 75, "twoStars": 90, "threeStars": 100 } },
+          "questions": [
+            { "id": 1, "type": "multiple_choice", "prompt": "Choose the correct first conditional.", "options": ["If it rains, we will stay inside.", "If it will rain, we stay inside.", "If it rained, we will stay inside."], "correctAnswer": "If it rains, we will stay inside.", "correction": "If it rains, we will stay inside.", "explanation": "Use present simple after if and will in the result clause." },
+            { "id": 2, "type": "missing_word", "prompt": "Choose the missing word.", "text": "If you study, you ___ pass the test.", "options": ["will", "would", "were"], "correctAnswer": "will", "correction": "If you study, you will pass the test.", "explanation": "The first conditional describes a real future possibility." },
+            { "id": 3, "type": "multiple_choice", "prompt": "Choose the correct second conditional.", "options": ["If I had more time, I would travel.", "If I have more time, I would travel.", "If I would have more time, I traveled."], "correctAnswer": "If I had more time, I would travel.", "correction": "If I had more time, I would travel.", "explanation": "Use past simple after if and would in the imaginary result." },
+            { "id": 4, "type": "missing_word", "prompt": "Choose the missing word.", "text": "She would help if she ___ the answer.", "options": ["knows", "knew", "will know"], "correctAnswer": "knew", "correction": "She would help if she knew the answer.", "explanation": "An imaginary present condition uses the past simple." },
+            { "id": 5, "type": "correct_incorrect", "prompt": "Choose quickly: correct or incorrect?", "text": "If they will arrive early, we start without them.", "isCorrect": false, "correctAnswer": "If they arrive early, we will start without them.", "correction": "If they arrive early, we will start without them.", "explanation": "Use present simple after if and will in the future result." },
+            { "id": 6, "type": "correct_incorrect", "prompt": "Choose quickly: correct or incorrect?", "text": "If I were you, I would apologise.", "isCorrect": true, "correctAnswer": "If I were you, I would apologise.", "correction": null, "explanation": "Were is standard in the phrase If I were you." }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Active or Passive?",
+          "type": "incorrect_sentence",
+          "difficulty": "hard",
+          "settings": { "questionCount": 4, "timeLimitSeconds": 60, "lives": 2, "passingPercentage": 80, "maxStars": 3, "starThresholds": { "oneStar": 80, "twoStars": 90, "threeStars": 100 } },
+          "questions": [
+            { "id": 1, "type": "correct_incorrect", "prompt": "Hit the sentence with a mistake.", "text": "English is spoken in many countries.", "isCorrect": true, "correctAnswer": "English is spoken in many countries.", "correction": null, "explanation": "Present passive uses am/is/are + past participle." },
+            { "id": 2, "type": "correct_incorrect", "prompt": "Hit the sentence with a mistake.", "text": "The bridge was build in 1995.", "isCorrect": false, "correctAnswer": "The bridge was built in 1995.", "correction": "The bridge was built in 1995.", "explanation": "The passive needs the past participle built." },
+            { "id": 3, "type": "correct_incorrect", "prompt": "Hit the sentence with a mistake.", "text": "The results will announce tomorrow.", "isCorrect": false, "correctAnswer": "The results will be announced tomorrow.", "correction": "The results will be announced tomorrow.", "explanation": "Future passive uses will be + past participle." },
+            { "id": 4, "type": "correct_incorrect", "prompt": "Hit the sentence with a mistake.", "text": "The rooms are cleaned every morning.", "isCorrect": true, "correctAnswer": "The rooms are cleaned every morning.", "correction": null, "explanation": "Are cleaned is the correct present passive for a plural subject." },
+            { "id": 5, "type": "correct_incorrect", "prompt": "Hit the sentence with a mistake.", "text": "My bike has been stole.", "isCorrect": false, "correctAnswer": "My bike has been stolen.", "correction": "My bike has been stolen.", "explanation": "Present-perfect passive uses been + past participle; stolen is required." },
+            { "id": 6, "type": "correct_incorrect", "prompt": "Hit the sentence with a mistake.", "text": "The winner was chosen by the judges.", "isCorrect": true, "correctAnswer": "The winner was chosen by the judges.", "correction": null, "explanation": "Was chosen is a correct past-passive form." }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Grammar Master Final",
+          "type": "mixed",
+          "difficulty": "expert",
+          "settings": { "questionCount": 4, "timeLimitSeconds": 60, "lives": 2, "passingPercentage": 80, "maxStars": 3, "starThresholds": { "oneStar": 80, "twoStars": 90, "threeStars": 100 } },
+          "questions": [
+            { "id": 1, "type": "multiple_choice", "prompt": "Choose the correct sentence.", "options": ["If I knew, I would tell you.", "If I would know, I told you.", "If I know, I would told you."], "correctAnswer": "If I knew, I would tell you.", "correction": "If I knew, I would tell you.", "explanation": "The second conditional uses past simple + would + base verb." },
+            { "id": 2, "type": "missing_word", "prompt": "Choose the missing word.", "text": "The invitations have been ___.", "options": ["send", "sent", "sending"], "correctAnswer": "sent", "correction": "The invitations have been sent.", "explanation": "The passive needs the past participle sent." },
+            { "id": 3, "type": "correct_incorrect", "prompt": "Choose quickly: correct or incorrect?", "text": "If the alarm rings, leave the building.", "isCorrect": true, "correctAnswer": "If the alarm rings, leave the building.", "correction": null, "explanation": "An imperative can be the result of a real condition." },
+            { "id": 4, "type": "multiple_choice", "prompt": "Choose the correct passive question.", "options": ["When was the museum opened?", "When did the museum opened?", "When was opened the museum?"], "correctAnswer": "When was the museum opened?", "correction": "When was the museum opened?", "explanation": "Passive questions put the auxiliary before the subject." },
+            { "id": 5, "type": "missing_word", "prompt": "Choose the missing word.", "text": "If he ___ now, he will catch the bus.", "options": ["leaves", "left", "will leave"], "correctAnswer": "leaves", "correction": "If he leaves now, he will catch the bus.", "explanation": "The if-clause of the first conditional uses present simple." },
+            { "id": 6, "type": "correct_incorrect", "prompt": "Choose quickly: correct or incorrect?", "text": "This problem can solved easily.", "isCorrect": false, "correctAnswer": "This problem can be solved easily.", "correction": "This problem can be solved easily.", "explanation": "A modal passive uses modal + be + past participle." }
           ]
         }
       ]

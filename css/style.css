@@ -141,6 +141,16 @@ ul { list-style: none; }
   overflow: hidden;
 }
 
+/* Let the illustrated map and play field reach both edges on desktop.
+   Smaller breakpoints keep their existing viewport-specific layouts. */
+@media (min-width: 1025px) {
+  .app {
+    width: 100%;
+    max-width: none;
+    margin-inline: 0;
+  }
+}
+
 .screen {
   position: absolute;
   inset: 0;
@@ -2260,7 +2270,24 @@ ul { list-style: none; }
 /* Word-chip targets (missing-word options): single words render smaller than
  * sentence dogs so every option always fits on the field together — never
  * drop an option, or the wrong-answer reveal could lose its target. */
-.mole.mole--word { width: clamp(64px, 20vw, 104px); }
+.mole.mole--word { width: clamp(82px, 24vw, 118px); }
+
+/* The full-width desktop artwork has large painted holes, so the characters
+ * need a stronger scale than the phone-first defaults. Sentence animals stay
+ * largest; short word-option animals are only slightly smaller so they remain
+ * the main targets instead of looking like tiny decorations in the holes. */
+@media (min-width: 601px) {
+  .mole.mole--word { width: clamp(110px, 15vw, 150px); }
+}
+
+@media (min-width: 1025px) and (min-height: 641px) {
+  .mole { width: clamp(180px, 12vw, 240px); }
+  .mole.mole--word { width: clamp(150px, 9vw, 190px); }
+}
+
+@media (max-height: 640px) {
+  .mole.mole--word { width: clamp(82px, 16.5vh, 118px); }
+}
 
 .mole.mole--word .mole__bubble {
   min-width: 64px;

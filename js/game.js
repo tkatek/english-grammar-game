@@ -23,7 +23,7 @@
    * 1. Constants
    * ====================================================================== */
 
-  const ENGINE_VERSION = "1.0.0";
+  const ENGINE_VERSION = "1.1.0";
 
   const STATUS = Object.freeze({
     IDLE: "idle",
@@ -561,6 +561,11 @@
           highestStars: Math.max(0, Math.floor(num(rec.highestStars))),
           bestStreak: Math.max(0, Math.floor(num(rec.bestStreak))),
           completedAt: Number.isFinite(Number(rec.completedAt)) ? Number(rec.completedAt) : null,
+          // A short rolling queue lets the next replay favour questions the
+          // learner has not just seen. Invalid/legacy values are discarded.
+          recentQuestionIds: Array.isArray(rec.recentQuestionIds)
+            ? rec.recentQuestionIds.filter((id) => typeof id === "string" || typeof id === "number").map(String)
+            : [],
         };
       });
     });
@@ -885,17 +890,61 @@
 
       const settings = this._mergeSettings(found.challenge);
 
-      // Play-session questions: clones, shuffled order, optional sub-selection
-      // via settings.questionCount, and a one-time option shuffle whose order
-      // stays stable for the whole lifetime of each question.
-      let pool = shuffle((found.challenge.questions || []).map((q) => deepClone(q)));
+      // Play-session questions: favour content not used in the immediately
+      // preceding run, then fill any remaining slots from the older material.
+      // This gives large banks real rotation instead of repeatedly taking a
+      // random slice that can look almost identical to the last game.
+      const allQuestions = (found.challenge.questions || []).map((q) => deepClone(q));
       const wanted = Number(settings.questionCount);
-      if (Number.isFinite(wanted) && wanted > 0 && wanted < pool.length) {
-        pool = pool.slice(0, Math.floor(wanted));
+      const playCount = Number.isFinite(wanted) && wanted > 0
+        ? Math.min(Math.floor(wanted), allQuestions.length)
+        : allQuestions.length;
+      const previous = getStoredChallenge(this._progress, String(found.level.id), String(found.challenge.id));
+      const recentIds = new Set(((previous && previous.recentQuestionIds) || []).map(String));
+      const unseen = shuffle(allQuestions.filter((q) => !recentIds.has(String(q.id))));
+      const seen = shuffle(allQuestions.filter((q) => recentIds.has(String(q.id))));
+      const orderedCandidates = unseen.concat(seen);
+      let pool;
+      if (found.challenge.type === "mixed") {
+        // A mixed test should actually feel mixed. Seed it with one question
+        // of every available format before filling the remaining slots.
+        const types = Array.from(new Set(allQuestions.map((q) => q.type)));
+        const seeded = [];
+        if (playCount >= types.length) {
+          types.forEach((type) => {
+            const candidate = orderedCandidates.find((q) => q.type === type && !seeded.includes(q));
+            if (candidate) seeded.push(candidate);
+          });
+        }
+        pool = seeded.concat(orderedCandidates.filter((q) => !seeded.includes(q))).slice(0, playCount);
+        pool = shuffle(pool);
+      } else {
+        pool = orderedCandidates.slice(0, playCount);
       }
       pool.forEach((q) => {
         if (Array.isArray(q.options)) q.options = shuffle(q.options);
       });
+
+      // Persist the rolling queue at start so Restart also produces a fresh
+      // set. Keeping one session's worth is enough to minimise overlap while
+      // still allowing a finite bank to cycle forever.
+      const levelKeyForHistory = String(found.level.id);
+      const challengeKeyForHistory = String(found.challenge.id);
+      if (!this._progress.levels[levelKeyForHistory]) this._progress.levels[levelKeyForHistory] = { challenges: {} };
+      const historyBucket = this._progress.levels[levelKeyForHistory].challenges;
+      const historyRecord = historyBucket[challengeKeyForHistory] || {
+        attempts: 0, completed: false, bestScore: 0, bestAccuracy: 0, highestStars: 0, bestStreak: 0, completedAt: null,
+      };
+      const selectedIds = pool.map((q) => String(q.id));
+      const mergedHistory = (historyRecord.recentQuestionIds || [])
+        .map(String)
+        .filter((id) => !selectedIds.includes(id))
+        .concat(selectedIds);
+      historyBucket[challengeKeyForHistory] = {
+        ...historyRecord,
+        recentQuestionIds: mergedHistory.slice(-Math.max(1, playCount)),
+      };
+      this._saveProgressToStorage();
 
       const lives = Math.max(1, Math.floor(Number(settings.lives) || ENGINE_DEFAULTS.lives));
       const timeLimitSeconds = Number(settings.timeLimitSeconds);
@@ -1450,7 +1499,7 @@
       if (!this._progress.levels[levelKey]) this._progress.levels[levelKey] = { challenges: {} };
       const bucket = this._progress.levels[levelKey];
       const prev = bucket.challenges[challengeKey] || {
-        attempts: 0, completed: false, bestScore: 0, bestAccuracy: 0, highestStars: 0, bestStreak: 0, completedAt: null,
+        attempts: 0, completed: false, bestScore: 0, bestAccuracy: 0, highestStars: 0, bestStreak: 0, completedAt: null, recentQuestionIds: [],
       };
       bucket.challenges[challengeKey] = {
         attempts: prev.attempts + 1,
@@ -1460,6 +1509,7 @@
         highestStars: Math.max(prev.highestStars, result.stars),
         bestStreak: Math.max(prev.bestStreak, result.bestStreak),
         completedAt: result.passed ? (prev.completedAt || result.completedAt) : prev.completedAt,
+        recentQuestionIds: Array.isArray(prev.recentQuestionIds) ? prev.recentQuestionIds.slice() : [],
       };
       this._saveProgressToStorage();
 
