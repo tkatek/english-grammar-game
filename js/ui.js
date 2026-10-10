@@ -2382,6 +2382,63 @@
   // Presentation-only sentence pools per level, used to build decoy targets
   // for whack-a-mole waves. The engine never sees this data; it keeps
   // validating every submitted claim against its own question state.
+  /* Presentation-only decoy sentences per level. The wave builder draws the
+   * fake Prairie Dog bubbles from these plus the question texts, so the same
+   * sentences stop repeating wave after wave. Engine-graded content never
+   * comes from here — these only dress the field. */
+  const DECOY_SENTENCES = {
+    1: [
+      { text: "My father works on Saturdays.", isCorrect: true },
+      { text: "He don't like cold weather.", isCorrect: false },
+      { text: "We play tennis on Fridays.", isCorrect: true },
+      { text: "Anna watch the news every evening.", isCorrect: false },
+      { text: "The shop opens at nine.", isCorrect: true },
+      { text: "They doesn't live in Madrid.", isCorrect: false },
+      { text: "I like grammar games.", isCorrect: true },
+      { text: "My mum cook dinner every day.", isCorrect: false },
+    ],
+    2: [
+      { text: "The baby is crying now.", isCorrect: true },
+      { text: "We am having lunch.", isCorrect: false },
+      { text: "Look! It is raining.", isCorrect: true },
+      { text: "The dog are barking at the cat.", isCorrect: false },
+      { text: "I am reading a great book.", isCorrect: true },
+      { text: "She is swim in the pool.", isCorrect: false },
+      { text: "The students are writing a test.", isCorrect: true },
+      { text: "You is standing on my foot.", isCorrect: false },
+    ],
+    3: [
+      { text: "We visited Rome last summer.", isCorrect: true },
+      { text: "He writed a long letter.", isCorrect: false },
+      { text: "They flew to Paris on Monday.", isCorrect: true },
+      { text: "I falled off my bike.", isCorrect: false },
+      { text: "She made a cake this morning.", isCorrect: true },
+      { text: "We didn't went to the beach.", isCorrect: false },
+      { text: "The concert finished at ten.", isCorrect: true },
+      { text: "He buyed a ticket yesterday.", isCorrect: false },
+    ],
+    4: [
+      { text: "This road is narrower than that one.", isCorrect: true },
+      { text: "She is the most pretty girl in class.", isCorrect: false },
+      { text: "Winter is colder than autumn.", isCorrect: true },
+      { text: "My room is more big than yours.", isCorrect: false },
+      { text: "It was the happiest day of my life.", isCorrect: true },
+      { text: "This test is more harder than the last.", isCorrect: false },
+      { text: "The Nile is longer than the Thames.", isCorrect: true },
+      { text: "He is the most tallest in the team.", isCorrect: false },
+    ],
+    5: [
+      { text: "I will help you with your bags.", isCorrect: true },
+      { text: "We can to meet at six.", isCorrect: false },
+      { text: "She is going to start a new job.", isCorrect: true },
+      { text: "You shoulds tell the teacher.", isCorrect: false },
+      { text: "They must sign the form today.", isCorrect: true },
+      { text: "He wills arrive tomorrow.", isCorrect: false },
+      { text: "You can keep the change.", isCorrect: true },
+      { text: "I musts finish this now.", isCorrect: false },
+    ],
+  };
+
   function loadSentencePools() {
     ctx.sentencePool = {};
     fetch("data/questions.json")
@@ -2389,14 +2446,17 @@
       .then((data) => {
         (data.levels || []).forEach((level) => {
           const pool = [];
+          const add = (entry) => {
+            if (entry.text && !pool.some((p) => p.text === entry.text.trim())) {
+              pool.push({ text: entry.text.trim(), isCorrect: entry.isCorrect === true });
+            }
+          };
           (level.challenges || []).forEach((challenge) => {
             (challenge.questions || []).forEach((question) => {
-              if (question.type === "correct_incorrect" && question.text &&
-                  !pool.some((p) => p.text === question.text.trim())) {
-                pool.push({ text: question.text.trim(), isCorrect: question.isCorrect === true });
-              }
+              if (question.type === "correct_incorrect") add(question);
             });
           });
+          (DECOY_SENTENCES[level.id] || []).forEach(add);
           ctx.sentencePool[String(level.id)] = pool;
         });
       })
