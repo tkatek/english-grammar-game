@@ -94,6 +94,29 @@ img {
   display: block;
 }
 
+/* Touch ergonomics: no double-tap-zoom delay on controls, no iOS tap flash,
+ * no accidental text-selection drags during gameplay. Pinch zoom itself is
+ * left enabled for accessibility. */
+button,
+.mole,
+.paddle,
+.intro__start,
+.challenge-card__start,
+.pause-pill,
+.icon-btn,
+.btn-home-primary,
+.btn-home-secondary {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  tap-highlight-color: transparent;
+}
+
+/* Game screens must never rubber-band or scroll-chain on mobile webviews;
+   the map viewport keeps its own controlled scrolling. */
+.app {
+  overscroll-behavior: none;
+}
+
 /* --------------------- 2B. SVG icon system (sprite) --------------------
  * Every icon references a <symbol> in the index.html sprite. Stroke icons
  * inherit currentColor; filled symbols use fill="currentColor". Size comes
@@ -325,37 +348,178 @@ ul { list-style: none; }
   padding: 24px;
 }
 
+/* Soft fantasy artwork behind the loader (non-blocking, dimmed + blurred
+ * so text always wins). WebP first via image-set, JPEG fallback. */
 .loading__scene {
-  width: min(88%, 620px);
-  border-radius: var(--radius-l);
-  overflow: hidden;
-  box-shadow: var(--shadow-card);
-  margin-bottom: 6px;
-  animation: loading-glow 2.4s ease-in-out infinite;
+  position: absolute;
+  inset: 0;
+  background: url("../assets/images/loading-scene.jpg") center / cover no-repeat;
+  opacity: 0.28;
+  filter: saturate(0.9) blur(1.5px);
+  pointer-events: none;
 }
-.loading__scene img {
-  width: 100%;
-  display: block;
+@supports (background-image: image-set("a.webp" type("image/webp"))) {
+  .loading__scene {
+    background-image: image-set(
+      url("../assets/images/loading-scene.webp") type("image/webp"),
+      url("../assets/images/loading-scene.jpg") type("image/jpeg")
+    );
+  }
 }
-@keyframes loading-glow {
-  0%, 100% { box-shadow: var(--shadow-card), 0 0 0 3px rgba(124, 92, 255, 0.35); }
-  50% { box-shadow: var(--shadow-card), 0 0 0 6px rgba(255, 197, 49, 0.5); }
+/* vignette keeps the centered content readable over the artwork */
+.screen--loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(75% 60% at 50% 42%, rgba(24, 14, 66, 0.1), rgba(24, 14, 66, 0.78) 100%),
+    linear-gradient(180deg, rgba(24, 14, 66, 0.35), rgba(24, 14, 66, 0.6));
+  pointer-events: none;
 }
-.loading__title { font-size: clamp(1.6rem, 5vw, 2.4rem); font-weight: 800; margin-top: 12px; }
-.loading__status { color: var(--blue-300); margin-top: 6px; }
-.loading__dots { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
-.loading__dots span {
-  width: 10px; height: 10px; border-radius: 50%;
-  background: var(--gold-500);
-  animation: dot-pulse 1.2s ease-in-out infinite;
-}
-.loading__dots span:nth-child(2) { animation-delay: 0.15s; }
-.loading__dots span:nth-child(3) { animation-delay: 0.3s; }
 
-@keyframes dot-pulse {
-  0%, 100% { transform: scale(0.7); opacity: 0.5; }
-  50% { transform: scale(1.15); opacity: 1; }
+.loading {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(92%, 420px);
 }
+
+/* Prairie dog mascot popping out of its hole while the game loads */
+.loading__mascot {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: loading-bob 2.6s ease-in-out infinite;
+  will-change: transform;
+}
+.loading__mascot img {
+  width: 118px;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 12px 18px rgba(6, 3, 24, 0.55));
+  animation: loading-peek 2.6s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+.loading__hole {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(8, 4, 26, 0.85), rgba(8, 4, 26, 0) 72%);
+}
+@keyframes loading-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+@keyframes loading-peek {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+.loading__title {
+  font-size: clamp(1.7rem, 6vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  margin-top: 18px;
+  text-shadow: 0 3px 0 rgba(11, 6, 35, 0.55), 0 10px 28px rgba(6, 3, 24, 0.6);
+}
+.loading__status {
+  color: var(--blue-300);
+  margin-top: 6px;
+  font-weight: 600;
+  min-height: 1.4em; /* reserve the line so retry text never shifts layout */
+}
+
+.loading__progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(100%, 300px);
+  margin-top: 18px;
+}
+.loading__bar {
+  flex: 1;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 2px 4px rgba(6, 3, 24, 0.45);
+  overflow: hidden;
+}
+.loading__bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand-400, #9B7BFF), var(--gold-400, #FFC531));
+  box-shadow: 0 0 12px rgba(255, 197, 49, 0.55);
+  transition: width 260ms ease-out;
+}
+/* moving shine keeps the bar alive even between file settles */
+.loading__bar-fill::after {
+  content: "";
+  display: block;
+  height: 100%;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.5) 50%, transparent 80%);
+  background-size: 200% 100%;
+  animation: loading-shine 1.6s linear infinite;
+  border-radius: inherit;
+}
+@keyframes loading-shine {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+.loading__pct {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+  min-width: 3.2em;
+  text-align: right;
+  color: #FFE9B8;
+}
+
+.loading__retry { margin-top: 20px; }
+.loading__retry[hidden] { display: none; }
+
+.loading__brand {
+  margin-top: 26px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Fade-out beat when loading completes (ui.js adds .is-done). */
+.screen--loading.is-done { animation: loading-out 340ms ease forwards; }
+@keyframes loading-out {
+  to { opacity: 0; transform: scale(1.03); }
+}
+/* Failure state: gentle shake so the Retry button draws the eye. */
+.screen--loading.is-failed .loading__bar {
+  background: rgba(255, 93, 115, 0.25);
+}
+.screen--loading.is-failed .loading { animation: loading-nudge 420ms ease; }
+@keyframes loading-nudge {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(-7px); }
+  60% { transform: translateX(6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading__mascot,
+  .loading__mascot img,
+  .loading__bar-fill::after { animation: none; }
+}
+body.reduce-motion .loading__mascot,
+body.reduce-motion .loading__mascot img,
+body.reduce-motion .loading__bar-fill::after { animation: none; }
 
 @keyframes float {
   0%, 100% { transform: translateY(0); }
@@ -401,6 +565,14 @@ ul { list-style: none; }
   position: absolute;
   inset: 0;
   background: url("../assets/images/home-bg.jpg") center / cover no-repeat;
+}
+@supports (background-image: image-set("a.webp" type("image/webp"))) {
+  .home-scene__art {
+    background-image: image-set(
+      url("../assets/images/home-bg.webp") type("image/webp"),
+      url("../assets/images/home-bg.jpg") type("image/jpeg")
+    );
+  }
 }
 
 /* Soft navy scrims keep the copy readable over the busy painting: a gentle
@@ -1281,11 +1453,36 @@ ul { list-style: none; }
 .challenge-card--available .challenge-card__start { background: var(--grad-brand); color: #fff; }
 
 .challenge-card--current { border-color: var(--gold-500); box-shadow: var(--glow-gold), var(--shadow-card); }
+.challenge-card--current .challenge-card__start { background: var(--grad-gold); color: var(--brand-900); }
+/* The next-up challenge glows so students always know where to continue */
+.challenge-card--current { animation: card-current-pulse 2.2s ease-in-out infinite; }
+
+@keyframes card-current-pulse {
+  0%, 100% { box-shadow: var(--glow-gold), var(--shadow-card); }
+  50%      { box-shadow: 0 0 0 5px rgba(255, 197, 49, 0.35), var(--glow-gold), var(--shadow-card); }
+}
 
 .challenge-card--completed { border-color: var(--green-500); }
 .challenge-card--completed .challenge-card__start { background: var(--grad-green); color: #fff; }
 
-.challenge-card--locked { opacity: 0.62; filter: saturate(0.5); pointer-events: none; }
+.challenge-card--locked {
+  opacity: 0.62;
+  filter: saturate(0.5);
+  pointer-events: none;
+}
+.challenge-card--locked .challenge-card__title::after {
+  content: "Locked";
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+}
 
 .challenge-card--final {
   background:
@@ -1900,17 +2097,10 @@ ul { list-style: none; }
 }
 
 .gamebar__timer {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(0, 0, 0, 0.25);
-  border-radius: 999px;
-  padding: 5px 13px;
-  font-weight: 800;
-  font-size: 0.95rem;
-  font-variant-numeric: tabular-nums;
+  display: none; /* countdown lives in the question card ring — one timer on screen */
 }
 
+/* Kept for the warn/danger classes the JS still toggles on the wrap. */
 .gamebar__timer .icon { width: 17px; height: 17px; }
 
 .gamebar__timer--warn { color: var(--gold-500); }
@@ -1983,6 +2173,38 @@ ul { list-style: none; }
 /* Tall fields (portrait tablets) also use the portrait artwork */
 .whack.whack--tall .whack__bg { background-image: url("../assets/images/game-bg-mobile.jpg"); }
 
+/* WebP variants (~40% lighter) wherever the browser supports them */
+@supports (background-image: image-set("a.webp" type("image/webp"))) {
+  .whack__bg {
+    background-image: image-set(
+      url("../assets/images/game-bg-desktop.webp") type("image/webp"),
+      url("../assets/images/game-bg-desktop.jpg") type("image/jpeg")
+    );
+  }
+  @media (max-width: 1024px) {
+    .whack__bg {
+      background-image: image-set(
+        url("../assets/images/game-bg-tablet.webp") type("image/webp"),
+        url("../assets/images/game-bg-tablet.jpg") type("image/jpeg")
+      );
+    }
+  }
+  @media (max-width: 600px) {
+    .whack__bg {
+      background-image: image-set(
+        url("../assets/images/game-bg-mobile.webp") type("image/webp"),
+        url("../assets/images/game-bg-mobile.jpg") type("image/jpeg")
+      );
+    }
+  }
+  .whack.whack--tall .whack__bg {
+    background-image: image-set(
+      url("../assets/images/game-bg-mobile.webp") type("image/webp"),
+      url("../assets/images/game-bg-mobile.jpg") type("image/jpeg")
+    );
+  }
+}
+
 .whack--speed .whack__bg::after {
   content: "";
   position: absolute;
@@ -1996,7 +2218,7 @@ ul { list-style: none; }
   50% { opacity: 1; }
 }
 
-/* ---- Instruction card (cream, centered) ---- */
+/* ---- Instruction card: purple arcade pill (badge | question | ring) ---- */
 .instruction {
   position: absolute;
   top: 10px;
@@ -2009,29 +2231,49 @@ ul { list-style: none; }
   align-items: center;
   justify-content: center;
   gap: 2px 8px;
-  background: linear-gradient(180deg, #FFFDF4, #FFF3D6);
-  border: 2px solid #F0D48A;
-  border-radius: 16px;
-  padding: 8px 20px;
+  background: linear-gradient(180deg, #3D2F82, #2A2160);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;              /* fully rounded pill ends, like the photo */
+  padding: 10px 64px 10px 64px;      /* round badge left, countdown ring right */
   text-align: center;
-  box-shadow: 0 6px 16px rgba(20, 12, 48, 0.35);
-  transition:
-    top 340ms cubic-bezier(0.5, 0.1, 0.3, 1),
-    transform 340ms cubic-bezier(0.5, 0.1, 0.3, 1),
-    width 340ms ease,
-    box-shadow 340ms ease;
+  box-shadow: 0 10px 26px rgba(6, 3, 24, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.14);
+  will-change: transform;
+  transition: transform 300ms cubic-bezier(0.5, 0.1, 0.3, 1), box-shadow 300ms ease;
 }
 
-/* Question read beat: every question first holds CENTER STAGE (~2s) so the
-   learner reads it, then the card docks back at the top and the animals
-   come out. ui.js drives the timing; this is the center-stage look. */
-.instruction.is-center {
+/* Question number badge — the gold-ringed circle at the pill's left end */
+.instruction__badge {
+  position: absolute;
+  left: 9px;
   top: 50%;
-  transform: translate(-50%, -50%) scale(1.06);
-  width: min(88%, 560px); /* scaled up it still fits inside 94% on phones */
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(12, 7, 38, 0.55);
+  border: 2.5px solid var(--gold-500);
+  color: #fff;
+  font-weight: 900;
+  font-size: 1.02rem;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.instruction__sparkle { display: none; } /* photo-accurate pill: badge | text | ring */
+
+/* Question read beat: every question first holds CENTER STAGE for ~2s so the
+   learner reads it, then the card docks to the top and the animals come out.
+   ui.js flies it with a measured transform (works for the absolutely
+   positioned desktop layout AND the in-flow stacked phone layout). */
+.instruction.is-center {
   z-index: 30;            /* above the pause pill and popups while reading */
   box-shadow:
-    0 18px 42px rgba(20, 12, 48, 0.45),
+    0 18px 42px rgba(6, 3, 24, 0.55),
     0 0 0 6px rgba(255, 197, 49, 0.28);
 }
 
@@ -2042,6 +2284,60 @@ ul { list-style: none; }
 }
 
 body.reduce-motion .instruction { transition: none; }
+
+/* Countdown ring (right side of the card): shows the seconds left for the
+   whole challenge, draining as the clock runs. */
+.instruction__timer {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.instruction__ring { width: 44px; height: 44px; transform: rotate(-90deg); }
+
+.instruction__ring-track,
+.instruction__ring-fill {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.instruction__ring-track { stroke: rgba(255, 255, 255, 0.16); }
+
+.instruction__ring-fill {
+  stroke: var(--gold-500);
+  stroke-dasharray: 119.38;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.9s linear, stroke 300ms ease;
+}
+
+.instruction__seconds {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.instruction__timer--warn .instruction__ring-fill { stroke: var(--gold-500); }
+.instruction__timer--warn .instruction__seconds { color: #FFD98A; }
+
+.instruction__timer--danger .instruction__ring-fill { stroke: var(--red-500); }
+.instruction__timer--danger .instruction__seconds { color: #FFB3BC; }
+.instruction__timer--danger .instruction__ring { animation: ring-pulse 640ms ease-in-out infinite; }
+
+@keyframes ring-pulse {
+  0%, 100% { transform: rotate(-90deg) scale(1); }
+  50%      { transform: rotate(-90deg) scale(1.09); }
+}
 
 .instruction__sparkle {
   width: 15px;
@@ -2060,14 +2356,14 @@ body.reduce-motion .instruction { transition: none; }
 
 .instruction__text {
   font-weight: 800;
-  font-size: clamp(0.95rem, 2vw, 1.18rem);
-  color: #22335C;
+  font-size: clamp(1.02rem, 2.3vw, 1.28rem);
+  color: #FFFFFF;
 }
 
 .instruction__hint {
   flex-basis: 100%;
   font-size: 0.78rem;
-  color: #5A6B94;
+  color: rgba(214, 220, 255, 0.85);
   font-weight: 600;
 }
 
@@ -2075,13 +2371,13 @@ body.reduce-motion .instruction { transition: none; }
   flex-basis: 100%;
   font-size: clamp(1rem, 2.4vw, 1.32rem);
   font-weight: 800;
-  color: #22335C;
+  color: #FFE9A8;
   overflow-wrap: anywhere;
 }
 
 .instruction__sentence .blank {
-  color: var(--brand-500);
-  border-bottom: 3px dotted var(--brand-500);
+  color: #FFC531;
+  border-bottom: 3px dotted rgba(255, 197, 49, 0.85);
   padding-inline: 4px;
 }
 
@@ -2119,9 +2415,10 @@ body.reduce-motion .instruction { transition: none; }
   object-fit: contain;
   object-position: bottom center;
   transform: translateY(106%);
-  animation: mole-rise 280ms cubic-bezier(0.32, 1.6, 0.55, 1) forwards;
+  animation: mole-rise 230ms cubic-bezier(0.3, 1.5, 0.5, 1) forwards;
   filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.3));
   transition: transform 140ms ease;
+  will-change: transform;
 }
 
 @media (hover: hover) {
@@ -2169,7 +2466,7 @@ body.reduce-motion .instruction { transition: none; }
   text-align: center;
   box-shadow: 0 5px 14px rgba(20, 12, 48, 0.3);
   opacity: 0;
-  animation: bubble-in 200ms ease 150ms forwards;
+  animation: bubble-in 200ms ease 110ms forwards;
   overflow-wrap: anywhere;
   cursor: pointer;
   text-wrap: balance;
@@ -2616,26 +2913,39 @@ body.reduce-motion .hammer-cursor.is-whacking .hammer-cursor__img {
 .pause-pill:active { transform: translateY(1px) scale(0.98); }
 .pause-pill .icon { width: 15px; height: 15px; }
 
-/* ---- Score popups ---- */
-.score-popups { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
+/* (Score popups are defined once above, next to the paddle styles.) */
 
-.score-popup {
+/* Streak milestone burst: one quick flame flourish at 3 / 5 / 10 in a row,
+   anchored under the HUD streak chip. Transform/opacity only. */
+.streak-burst {
   position: absolute;
-  transform: translate(-50%, -50%);
-  font-weight: 800;
-  font-size: clamp(1.15rem, 2.8vw, 1.5rem);
-  color: var(--gold-600);
-  text-shadow: 0 2px 0 #fff, 0 4px 10px rgba(0, 0, 0, 0.25);
-  animation: popup-rise 900ms ease-out both;
-  white-space: nowrap;
+  top: 14%;
+  left: 50%;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 122, 46, 0.95), rgba(232, 74, 56, 0.92));
+  border: 2px solid rgba(255, 224, 138, 0.9);
+  box-shadow: 0 8px 22px rgba(232, 74, 56, 0.45);
+  color: #fff;
+  font-weight: 900;
+  font-size: clamp(0.95rem, 2.2vw, 1.15rem);
+  pointer-events: none;
+  animation: streak-burst 1s cubic-bezier(0.3, 1.4, 0.5, 1) both;
+  will-change: transform, opacity;
 }
 
-.score-popup--life { color: var(--red-500); font-size: clamp(0.95rem, 2.2vw, 1.2rem); }
+.streak-burst .icon { width: 20px; height: 20px; color: #FFE28A; }
 
-@keyframes popup-rise {
-  from { opacity: 0; transform: translate(-50%, -30%); }
-  25% { opacity: 1; }
-  to { opacity: 0; transform: translate(-50%, -170%); }
+@keyframes streak-burst {
+  0%   { opacity: 0; transform: translate(-50%, 14px) scale(0.6); }
+  18%  { opacity: 1; transform: translate(-50%, 0) scale(1.08); }
+  30%  { transform: translate(-50%, 0) scale(1); }
+  78%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -26px) scale(0.94); }
 }
 
 /* ---- HUD streak chip (hidden until streak >= 2) ---- */
@@ -2656,6 +2966,11 @@ body.reduce-motion .hammer-cursor.is-whacking .hammer-cursor__img {
 .gamebar__streak.bump { animation: score-bump 320ms ease; }
 
 /* ---- Feedback: ONE contained card inside the game field ---- */
+/* The answer card wears the uploaded ornate artwork: the rounded shape,
+ * gold trim, top tab and corner ring are all painted in the image and the
+ * area outside them is transparent — so the CSS adds no border of its own
+ * and a drop-shadow follows the painted silhouette, not the box.
+ * Asset: 49KB WebP, preloaded with the other game art. */
 .feedback-card {
   position: absolute;
   left: 50%;
@@ -2666,15 +2981,13 @@ body.reduce-motion .hammer-cursor.is-whacking .hammer-cursor__img {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #FFFDF6;
-  border: 2.5px solid var(--green-500);
-  border-radius: 18px;
-  padding: 10px 12px 10px 14px;
-  box-shadow: 0 8px 20px rgba(20, 12, 48, 0.35);
+  background: url("../assets/images/feedback-card.webp") center / 100% 100% no-repeat;
+  border: none;
+  border-radius: 30px; /* clip hits stay inside the painted pill shape */
+  padding: 16px 30px 16px 32px; /* keep content inside the painted gold frame */
+  filter: drop-shadow(0 10px 24px rgba(15, 9, 44, 0.45));
   animation: feedback-in 180ms ease both;
 }
-
-.feedback-card.is-wrong { border-color: var(--red-500); }
 
 @keyframes feedback-in {
   from { opacity: 0; transform: translateX(-50%) scale(0.95); }
@@ -2731,7 +3044,7 @@ body.reduce-motion .hammer-cursor.is-whacking .hammer-cursor__img {
     width: calc(100% - 24px);
     flex-wrap: wrap;
     gap: 6px 10px;
-    padding: 10px 12px;
+    padding: 14px 22px 14px 24px;
   }
   .feedback-card__body { flex-basis: 100%; order: 2; }
   .feedback-card__next { order: 3; margin-left: auto; }
@@ -3074,7 +3387,7 @@ body.reduce-motion .hammer-cursor.is-whacking .hammer-cursor__img {
     width: calc(100% - 24px);
     max-width: min(100%, 560px); /* keep the desktop card cap */
     margin-inline: auto;
-    padding: 10px 14px;
+    padding: 10px 54px 10px 60px; /* round badge left, countdown ring right */
   }
 
   /* Stacked center stage: the card STAYS in flow (its row keeps the field
@@ -3099,6 +3412,13 @@ body.reduce-motion .hammer-cursor.is-whacking .hammer-cursor__img {
   }
   .instruction__sentence { font-size: 0.98rem; overflow-wrap: anywhere; }
   .instruction__sparkle { display: none; }
+
+  /* Smaller pill furniture on narrow phones so the question keeps its room */
+  .instruction { padding: 7px 44px 7px 46px; }
+  .instruction__badge { width: 30px; height: 30px; left: 7px; border-width: 2px; font-size: 0.85rem; }
+  .instruction__timer { width: 34px; height: 34px; right: 8px; }
+  .instruction__ring { width: 34px; height: 34px; }
+  .instruction__seconds { font-size: 0.78rem; }
 }
 
 /* Journey map fades: on phones the full-bleed artwork eases under the header
@@ -3174,7 +3494,9 @@ body.reduce-motion .hammer-cursor.is-whacking .hammer-cursor__img {
   .intro__start { min-height: 46px; margin-top: 2px; }
   .intro-card { display: none; }
 
-  .loading__scene { width: min(85%, 380px); }
+  .loading__mascot { width: 104px; height: 104px; }
+  .loading__mascot img { width: 92px; }
+  .loading__hole { width: 96px; }
   .error-box__mascot { width: 70px; }
 
   .gamebar { min-height: 42px; }

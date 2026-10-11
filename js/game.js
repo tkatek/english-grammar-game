@@ -1907,6 +1907,4 @@
       ENGINE_DEFAULTS,
     };
   }
-
-  console.log("Grammar Quest: game.js loaded successfully.");
 })(typeof window !== "undefined" ? window : globalThis);

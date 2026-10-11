@@ -38,23 +38,26 @@
   // Centralized Prairie Dog asset map — the ONLY gameplay target characters.
   // Reactions reflect the LEARNER'S action result (engine answerCorrect/Wrong),
   // never the grammar of the sentence itself.
+  // GQAssets.url() swaps .png -> .webp (identical art, ~96% smaller) on the
+  // ~97% of browsers that support WebP; others keep the PNG fallback.
+  const Assets = window.GQAssets;
   const PD = "assets/images/prairie-dogs/";
   const PRAIRIE_DOG_ASSETS = {
     neutral: {
-      glasses: PD + "prairie-dog-neutral-glasses.png",
-      student: PD + "prairie-dog-neutral-student.png",
-      cool: PD + "prairie-dog-neutral-cool.png",
+      glasses: Assets.url(PD + "prairie-dog-neutral-glasses.png"),
+      student: Assets.url(PD + "prairie-dog-neutral-student.png"),
+      cool: Assets.url(PD + "prairie-dog-neutral-cool.png"),
     },
     correct: {
-      thumbsUp: PD + "prairie-dog-correct-thumbs-up.png",
-      celebrate: PD + "prairie-dog-correct-celebrate.png",
+      thumbsUp: Assets.url(PD + "prairie-dog-correct-thumbs-up.png"),
+      celebrate: Assets.url(PD + "prairie-dog-correct-celebrate.png"),
     },
     wrong: {
-      surprised: PD + "prairie-dog-wrong-surprised.png",
-      anxious: PD + "prairie-dog-wrong-anxious.png",
-      crying: PD + "prairie-dog-wrong-crying.png",
-      dizzy: PD + "prairie-dog-wrong-dizzy.png",
-      smashed: PD + "prairie-dog-wrong-smashed.png",
+      surprised: Assets.url(PD + "prairie-dog-wrong-surprised.png"),
+      anxious: Assets.url(PD + "prairie-dog-wrong-anxious.png"),
+      crying: Assets.url(PD + "prairie-dog-wrong-crying.png"),
+      dizzy: Assets.url(PD + "prairie-dog-wrong-dizzy.png"),
+      smashed: Assets.url(PD + "prairie-dog-wrong-smashed.png"),
     },
   };
   const NEUTRAL_KEYS = Object.keys(PRAIRIE_DOG_ASSETS.neutral);
@@ -160,6 +163,10 @@
 
   const REWARDS = "assets/images/rewards/";
   const MASCOTS = "assets/images/mascots/";
+  // WebP-aware helpers for on-demand art (rewards/mascots render on results
+  // and completion screens — loaded lazily, always in the lightest format).
+  const rewardArt = (name) => Assets.url(REWARDS + name + ".png");
+  const mascotArt = (name) => Assets.url(MASCOTS + name + ".png");
 
   /* ------------------------------ helpers ------------------------------ */
 
@@ -395,7 +402,7 @@
    * animates, reactions are driven by ANSWER_SUBMITTED and never by
    * sentence text.
    * -------------------------------------------------------------------- */
-  const HAMMER_URL = "assets/images/ui/grammar-quest-hammer.png";
+  const HAMMER_URL = Assets.url("assets/images/ui/grammar-quest-hammer.png");
   const HAMMER_OFFSET_X = 0.33; // strike face inside the artwork (head at the
   const HAMMER_OFFSET_Y = 0.56; // pointer, handle extends to bottom-right)
   const HAMMER_IMPACT_MS = 150; // swing start -> head contact (matches keyframes)
@@ -527,7 +534,7 @@
         if (e.pointerType === "touch") return;
         inside = true;
         if (mode && !overDefaultCursor(e.target)) show(e.clientX, e.clientY);
-      });
+      }, { passive: true });
       arena.addEventListener("pointermove", (e) => {
         if (e.pointerType === "touch") return;
         inside = true;
@@ -540,13 +547,13 @@
         root.classList.toggle("is-visible", !overChrome);
         if (overChrome) return;
         aim(!!(e.target.closest && e.target.closest(".mole, .paddle")));
-      });
+      }, { passive: true });
       arena.addEventListener("pointerleave", (e) => {
         if (e.pointerType === "touch") return;
         inside = false;
         hide();
         aim(false);
-      });
+      }, { passive: true });
       arena.addEventListener("pointerdown", (e) => {
         if (!ctx.question || ctx.questionLocked) return;
         const target = e.target.closest ? e.target.closest(".mole, .paddle") : null;
@@ -651,13 +658,14 @@
   function warmMapArt(tier) {
     const urls = MAP_ART_URLS[tier];
     if (!urls) return;
-    for (const src of [urls.webp, urls.jpg]) {
-      if (warmedArt.has(src)) continue;
-      warmedArt.add(src);
-      const img = new Image();
-      img.decoding = "async";
-      img.src = src;
-    }
+    // Warm ONLY the format the CSS will actually request — warming both
+    // would download every map artwork twice.
+    const src = Assets.pick(urls);
+    if (!src || warmedArt.has(src)) return;
+    warmedArt.add(src);
+    const img = new Image();
+    img.decoding = "async";
+    img.src = src;
   }
 
   // Applies the tier to the section (header/frame/node sizing) and canvas
@@ -1112,6 +1120,7 @@
     $("#hud-timer-wrap").hidden = !payload.settings.timeLimitSeconds;
     $("#hud-timer").textContent = payload.settings.timeLimitSeconds ? fmtTime(payload.settings.timeLimitSeconds) : "";
     updateTimerClass(payload.settings.timeLimitSeconds, payload.settings.timeLimitSeconds);
+    updateCountdownRing(payload.settings.timeLimitSeconds, payload.settings.timeLimitSeconds);
 
     const hearts = $("#hud-hearts");
     clearNode(hearts);
@@ -1135,6 +1144,9 @@
     const pct = total > 0 ? Math.round((answered / total) * 100) : 0;
     $("#hud-progress-fill").style.width = pct + "%";
     $("#hud-progress-label").textContent = "Question " + Math.min(currentNumber, total) + " / " + total;
+    // the pill's round badge mirrors the question number
+    const badge = $("#instruction-badge");
+    if (badge) badge.textContent = String(Math.min(currentNumber, total));
   }
 
   function updateTimerClass(remaining, total) {
@@ -1143,6 +1155,37 @@
     if (!total || remaining === null || remaining === undefined) return;
     if (remaining <= 5) box.classList.add("hud__timer--danger");
     else if (remaining <= total * 0.2) box.classList.add("hud__timer--warn");
+  }
+
+  // Countdown ring inside the question card: drains over the whole challenge,
+  // warns at 20%, flashes red in the last 5 seconds.
+  const RING_CIRCUMFERENCE = 119.38; // 2πr of the card's ring (r = 19)
+
+  function updateCountdownRing(remaining, total) {
+    const wrap = $("#instruction-timer");
+    const ring = $("#instruction-ring");
+    const sec = $("#instruction-seconds");
+    if (!wrap || !ring || !sec) return;
+    if (!total || remaining === null || remaining === undefined) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    ring.style.strokeDashoffset = (RING_CIRCUMFERENCE * (1 - Math.max(0, remaining) / total)).toFixed(1);
+    sec.textContent = remaining;
+    wrap.classList.remove("instruction__timer--warn", "instruction__timer--danger");
+    if (remaining <= 5) wrap.classList.add("instruction__timer--danger");
+    else if (remaining <= total * 0.2) wrap.classList.add("instruction__timer--warn");
+  }
+
+  // One quick flame flourish for streak milestones (3 / 5 / 10 in a row).
+  function showStreakBurst(streak) {
+    const field = document.getElementById("whack");
+    if (!field || ctx.screen !== "game") return;
+    const old = field.querySelector(".streak-burst");
+    if (old) old.remove(); // never stack bursts
+    const burst = el("div", { class: "streak-burst", "aria-hidden": "true" });
+    burst.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><use href="#i-flame"/></svg>' +
+      "On fire! \u00d7" + streak;
+    field.appendChild(burst);
+    burst.addEventListener("animationend", () => burst.remove(), { once: true });
   }
 
   function syncFieldArtwork() {
@@ -1159,9 +1202,9 @@
    * (no pause menu) until the card starts docking back up.
    * --------------------------------------------------------------------- */
   const QUESTION_INTRO_MS = {
-    FLY: 340,   // top -> center
-    HOLD: 1660, // reading hold (with the fly-in the card owns center ~2s)
-    DOCK: 340,  // center -> top, then the board spawns
+    FLY: 300,   // top -> center (matches the CSS transform transition)
+    HOLD: 2700, // reading hold — the card owns center stage for ~3s total
+    DOCK: 300,  // center -> top, then the board spawns
   };
 
   function startQuestionIntro(beginPlay) {
@@ -1182,18 +1225,7 @@
     instr.style.transform = "";
     void instr.offsetWidth; // guarantee the flight animates on every question
     instr.classList.add("is-center");
-
-    // Stacked phone/tablet layout: the card sits in normal flow there, so
-    // top/left cannot move it — measure the vector to the field's center and
-    // fly it with a transform instead. (Desktop centers via the .is-center
-    // CSS rule alone; the inline transform is never set there.)
-    if (getComputedStyle(instr).position === "static") {
-      const r = instr.getBoundingClientRect();
-      const f = document.getElementById("whack").getBoundingClientRect();
-      const dx = Math.round(f.left + f.width / 2 - (r.left + r.width / 2));
-      const dy = Math.round(f.top + f.height / 2 - (r.top + r.height / 2));
-      instr.style.transform = "translate(" + dx + "px," + dy + "px) scale(1.04)";
-    }
+    applyIntroFlight(instr);
 
     state.timers.push(setTimeout(() => {
       instr.classList.remove("is-center"); // fly back to the top
@@ -1241,6 +1273,45 @@
     }
   }
 
+  /* ----- Question phrasing ------------------------------------------------
+   * Fresh wording for every question instead of one repeated instruction.
+   * The phrasing is seeded from the question id, so a re-render (resize)
+   * shows the SAME text — no mid-question swaps. The engine-logic regex
+   * (mistake/wrong) still reads the ORIGINAL q.prompt, never this text.
+   * ---------------------------------------------------------------------- */
+  const INSTRUCTION_VARIANTS = {
+    correct: [
+      "Which sentence is correct?",
+      "Tap the correct sentence.",
+      "Find the right sentence.",
+      "Pick the correct sentence.",
+      "Which one is right?",
+    ],
+    mistake: [
+      "Which sentence has a mistake?",
+      "Find the mistake.",
+      "Tap the sentence with the error.",
+      "Which one is wrong?",
+      "Spot the mistake!",
+    ],
+    missing: [
+      "Tap the animal holding the missing word.",
+      "Which word is missing?",
+      "Fill the gap — tap the word.",
+      "Complete the sentence.",
+    ],
+    choice: [
+      "Tap the animal with the correct sentence.",
+      "Which sentence is right?",
+      "Pick the correct one.",
+    ],
+  };
+
+  function pickPhrase(pool, q) {
+    const seed = ((q && q.id) || 0) + (ctx.levelId || 0) * 2;
+    return pool[Math.abs(seed) % pool.length];
+  }
+
   function renderQuestion(payload, opts) {
     ctx.question = payload.question;
     ctx.questionLocked = false;
@@ -1268,21 +1339,22 @@
       // level pop out of different holes at once. Hitting a sentence claims
       // it matches the instruction; the engine stays the only validator.
       ctx.tapMeansCorrect = !/mistake|wrong/i.test(q.prompt || "");
-      setText("#instruction-text", q.prompt || "Is this sentence correct?");
+      setText("#instruction-text", pickPhrase(
+        ctx.tapMeansCorrect ? INSTRUCTION_VARIANTS.correct : INSTRUCTION_VARIANTS.mistake, q));
       setText("#instruction-hint", ctx.tapMeansCorrect
         ? "Whack the animal with the CORRECT sentence"
         : "Whack the animal with the sentence that has a MISTAKE");
       setShown("#instruction-hint", true);
       setShown("#instruction-sentence", false);
     } else if (q.type === "missing_word") {
-      setText("#instruction-text", "Tap the animal holding the missing word");
+      setText("#instruction-text", pickPhrase(INSTRUCTION_VARIANTS.missing, q));
       setShown("#instruction-hint", false);
       const holder = $("#instruction-sentence");
       clearNode(holder);
       holder.appendChild(renderSentenceWithBlank(q.text || ""));
       setShown("#instruction-sentence", true);
     } else if (q.type === "multiple_choice") {
-      setText("#instruction-text", q.prompt || "Tap the animal with the correct sentence");
+      setText("#instruction-text", pickPhrase(INSTRUCTION_VARIANTS.choice, q));
       setShown("#instruction-hint", false);
       setShown("#instruction-sentence", false);
     } else {
@@ -1915,6 +1987,7 @@
 
   function renderResults(result) {
     ctx.pendingResult = null;
+    warmRewardAssets(); // medals/trophies decode before the cards render
     const body = $("#results-body");
     clearNode(body);
     const level = engine.getLevel(ctx.levelId || result.levelId);
@@ -1927,7 +2000,7 @@
         el("img", { src: PRAIRIE_DOG_ASSETS.correct.celebrate, alt: "" }),
       ]));
       body.appendChild(el("div", { class: "results__medal" }, [
-        el("img", { src: REWARDS + medal + ".png", alt: result.stars + " star medal" }),
+        el("img", { src: rewardArt(medal), alt: result.stars + " star medal" }),
       ]));
       body.appendChild(el("h2", { class: "results__title", text: "Challenge Complete!" }));
       body.appendChild(starsRow(result.stars, result.maxStars || 3, true));
@@ -2090,7 +2163,7 @@
     window.grammarQuestAudio.play("levelComplete");
 
     body.appendChild(el("div", { class: "level-complete__banner" }, [
-      el("img", { src: fullGame ? REWARDS + "trophy-gold.png" : REWARDS + "banner.png", alt: "" }),
+      el("img", { src: fullGame ? rewardArt("trophy-gold") : rewardArt("banner"), alt: "" }),
     ]));
     body.appendChild(el("h2", {
       class: "level-complete__title",
@@ -2105,14 +2178,14 @@
           : (level ? level.title : ""),
     }));
     body.appendChild(el("div", { class: "level-complete__chest" }, [
-      el("img", { src: fullGame ? PRAIRIE_DOG_ASSETS.correct.celebrate : REWARDS + "chest.png", alt: "" }),
+      el("img", { src: fullGame ? PRAIRIE_DOG_ASSETS.correct.celebrate : rewardArt("chest"), alt: "" }),
     ]));
 
     const stats = el("div", { class: "level-complete__stats" });
     stats.appendChild(el("span", { class: "stat-chip", text: progress.completedChallenges + " / " + progress.totalChallenges + " challenges" }));
     stats.appendChild(el("span", { class: "stat-chip", text: progress.stars + " / " + progress.maxStars + " stars" }));
     body.appendChild(stats);
-    body.appendChild(el("img", { class: "level-complete__sparkles", src: REWARDS + "sparkles.png", alt: "" }));
+    body.appendChild(el("img", { class: "level-complete__sparkles", src: rewardArt("sparkles"), alt: "" }));
 
     const levels = engine.getLevels();
     const hasNextLevel = levels.some((l) => l.id === result.levelId + 1);
@@ -2141,7 +2214,12 @@
   /* ============================ engine wiring =========================== */
 
   function wireEngine() {
-    engine.on(E.GAME_READY, () => { startNextActivity(); });
+    // GAME_READY fires from inside boot()'s engine.init() — gameplay (and
+    // the countdown) may only start once the loading screen has finished
+    // decoding every essential asset. boot() calls startNextActivity itself.
+    engine.on(E.GAME_READY, () => {
+      if (bootAssetsReady) startNextActivity();
+    });
 
     engine.on(E.ERROR, (payload) => {
       if (engine.status === "error") {
@@ -2157,11 +2235,30 @@
       ctx.challengeId = payload.challengeId;
       ctx.gameCompleted = false;
       ctx.levelJustCompleted = null;
-      setupGameScreen(payload);
+      try {
+        setupGameScreen(payload);
+      } catch (err) {
+        // A rendering bug must never leave the engine playing behind a
+        // stale screen (countdown burning on an invisible field): force the
+        // transition, then let the global handler report it.
+        console.error("[GrammarQuest] challenge screen setup failed:", err);
+        try { showScreen("game"); } catch (err2) { /* nothing more to do */ }
+      }
       Sound.play("challengeStart");
     });
 
-    engine.on(E.QUESTION_CHANGED, (payload) => { renderQuestion(payload); });
+    engine.on(E.QUESTION_CHANGED, (payload) => {
+      try {
+        renderQuestion(payload);
+      } catch (err) {
+        console.error("[GrammarQuest] question render failed:", err);
+        // The engine has already moved on — offer the learner the feedback
+        // card as a safe continuation point instead of a blank field.
+        ctx.question = payload.question;
+        ctx.questionLocked = true;
+        hideFeedback();
+      }
+    });
 
     engine.on(E.ANSWER_SUBMITTED, (feedback) => {
       ctx.questionLocked = true;
@@ -2211,7 +2308,10 @@
       chip.classList.remove("bump");
       void chip.offsetWidth;
       chip.classList.add("bump");
-      if (STREAK_MILESTONES.includes(payload.streak)) Sound.play("streak");
+      if (STREAK_MILESTONES.includes(payload.streak)) {
+        Sound.play("streak");
+        showStreakBurst(payload.streak);
+      }
     });
 
     engine.on(E.LIVES_CHANGED, (payload) => {
@@ -2238,6 +2338,7 @@
     engine.on(E.TIMER_TICK, (payload) => {
       $("#hud-timer").textContent = fmtTime(payload.remainingSeconds);
       updateTimerClass(payload.remainingSeconds, payload.totalSeconds);
+      updateCountdownRing(payload.remainingSeconds, payload.totalSeconds);
     });
 
     engine.on(E.TIMER_LOW, () => Sound.play("timer-low"));
@@ -2352,8 +2453,8 @@
       if (result && !result.started) toast(result.reason || "Challenge unavailable", "lock-closed");
     });
 
-    $("#answer-correct").addEventListener("click", () => submit(true));
-    $("#answer-incorrect").addEventListener("click", () => submit(false));
+    $("#answer-correct").addEventListener("click", () => submitClaim(true));
+    $("#answer-incorrect").addEventListener("click", () => submitClaim(false));
 
     $("#feedback-continue").addEventListener("click", () => {
       Sound.play("click");
@@ -2521,51 +2622,150 @@
     }
   }
 
-  // Window resized mid-read: re-measure the stacked-layout flight so the
-  // card stays dead-center on the new field size. (The desktop layout
-  // re-centers through CSS alone — nothing to do there.)
-  function refreshIntroFlight() {
-    const instr = $("#instruction");
-    if (!instr.classList.contains("is-center")) return;
-    instr.style.transform = "";
-    if (getComputedStyle(instr).position !== "static") return;
+  // Fly the question card to the field's exact center with ONE measured
+  // transform — pure transform animation (GPU-friendly, no layout props).
+  // The absolutely positioned desktop card keeps its translateX(-50%) base;
+  // the stacked phone card (position: static) has no base transform.
+  function applyIntroFlight(instr) {
     const r = instr.getBoundingClientRect();
     const f = document.getElementById("whack").getBoundingClientRect();
     const dx = Math.round(f.left + f.width / 2 - (r.left + r.width / 2));
     const dy = Math.round(f.top + f.height / 2 - (r.top + r.height / 2));
-    instr.style.transform = "translate(" + dx + "px," + dy + "px) scale(1.04)";
+    if (getComputedStyle(instr).position === "static") {
+      instr.style.transform = "translate(" + dx + "px," + dy + "px) scale(1.02)";
+    } else {
+      instr.style.transform = "translate(calc(-50% + " + dx + "px)," + dy + "px) scale(1.06)";
+    }
   }
 
-  function preload() {
-    // Warm the Adventure Map artwork this device class will actually show,
-    // so the map never flashes the wrong background first.
-    warmMapArt(mapTierFor(window.innerWidth, window.innerHeight));
+  // Window resized mid-read: re-measure so the card stays dead-center on the
+  // new field size.
+  function refreshIntroFlight() {
+    const instr = $("#instruction");
+    if (!instr.classList.contains("is-center")) return;
+    instr.style.transform = "";
+    applyIntroFlight(instr);
+  }
+
+  /* ------------------------------ preload ------------------------------
+   * Essential = only what the FIRST gameplay frame needs: the device's
+   * field artwork, the three neutral Prairie Dogs and (desktop) the hammer
+   * cursor. Everything else — reaction art, map artwork, hero, home scene,
+   * rewards — warms in the background AFTER gameplay is already running.
+   * On a slow connection the loader therefore tracks a few hundred KB
+   * instead of the old ~8 MB "load everything" fire-and-forget dump. */
+
+  const FIELD_BG_URLS = {
+    desktop: { webp: "assets/images/game-bg-desktop.webp", jpg: "assets/images/game-bg-desktop.jpg" },
+    tablet: { webp: "assets/images/game-bg-tablet.webp", jpg: "assets/images/game-bg-tablet.jpg" },
+    mobile: { webp: "assets/images/game-bg-mobile.webp", jpg: "assets/images/game-bg-mobile.jpg" },
+  };
+
+  function fieldTier() {
+    const w = window.innerWidth;
+    if (w <= 600) return "mobile";
+    if (w <= 1024) return "tablet";
+    return "desktop";
+  }
+
+  function essentialAssets() {
     const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-    Object.values(PRAIRIE_DOG_ASSETS.neutral)
-      .concat(Object.values(PRAIRIE_DOG_ASSETS.correct))
-      .concat(Object.values(PRAIRIE_DOG_ASSETS.wrong))
-      .concat(finePointer ? [HAMMER_URL] : []) // desktop only: ready before the first hover
-      .concat(['assets/images/mascots/prairie-dog-hero.png']) // intro hero
-      .forEach((src) => { const img = new Image(); img.src = src; });
+    const items = Object.values(PRAIRIE_DOG_ASSETS.neutral).map((src) => ({ src, weight: 2 }));
+    items.push({ src: Assets.pick(FIELD_BG_URLS[fieldTier()]), weight: 8 });
+    // A portrait tablet swaps to the portrait artwork (.whack--tall) once
+    // rendered — warm it too so the first question never flashes.
+    if (fieldTier() === "tablet" && window.innerHeight > window.innerWidth) {
+      items.push({ src: Assets.pick(FIELD_BG_URLS.mobile), weight: 8 });
+    }
+    if (finePointer) items.push({ src: HAMMER_URL, weight: 2 });
+    // The ornate answer-card skin shows on the very first answer — warm it
+    // with the essentials so it never pops in late.
+    items.push({ src: "assets/images/feedback-card.webp", weight: 3 });
+    return items.filter((it) => !!it.src);
   }
 
-  /* -------------------------------- boot ------------------------------- */
+  /** Non-essential art, warmed once gameplay (or the map/home) is up. */
+  function warmDeferredAssets() {
+    if (ctx.deferredWarmed) return;
+    ctx.deferredWarmed = true;
+    Assets.warm([
+      PRAIRIE_DOG_ASSETS.correct.thumbsUp,
+      PRAIRIE_DOG_ASSETS.correct.celebrate,
+      PRAIRIE_DOG_ASSETS.wrong.surprised,
+      PRAIRIE_DOG_ASSETS.wrong.smashed,
+      PRAIRIE_DOG_ASSETS.wrong.dizzy,
+      PRAIRIE_DOG_ASSETS.wrong.crying,
+      "assets/images/mascots/prairie-dog-hero.png",
+      "assets/images/grammar-quest-home-mascot.png",
+      Assets.pick({ webp: "assets/images/home-bg.webp", jpg: "assets/images/home-bg.jpg" }),
+    ]);
+    warmMapArt(mapTierFor(window.innerWidth, window.innerHeight));
+  }
+
+  /** Rewards art warms the first time a results screen approaches. */
+  function warmRewardAssets() {
+    if (ctx.rewardsWarmed) return;
+    ctx.rewardsWarmed = true;
+    Assets.warm(["trophy-gold", "banner", "chest", "sparkles", "medal-1", "medal-2", "medal-3"]
+      .map((name) => REWARDS + name + ".png"));
+  }
+
+  /* -------------------------------- boot -------------------------------
+   * One fetch of questions.json feeds BOTH the engine and the decoy-pool
+   * builder (the old flow downloaded the file twice). Progress is real:
+   * byte-streamed JSON + per-asset image settles feed the loading bar, and
+   * gameplay (and its countdown) never starts before every essential asset
+   * has decoded or the player has been offered a retry. */
+  const JSON_WEIGHT = 6;
+  let bootAssetsReady = false;
 
   async function boot() {
     showScreen("loading");
-    $("#loading-status").textContent = "Loading Grammar Quest\u2026";
+    window.GQLoader.begin(() => { boot(); });
+    const essentials = essentialAssets();
+    const imagesWeight = essentials.reduce((sum, it) => sum + it.weight, 0);
+    const totalWeight = JSON_WEIGHT + imagesWeight;
+
+    let data;
     try {
-      // Sentence pools load in PARALLEL with the engine: by the time the
-      // first question's read beat ends, the wave builder always has decoys.
-      const poolsReady = loadSentencePools();
-      await engine.init({ url: "data/questions.json" });
-      await poolsReady;
+      data = await Assets.loadJson("data/questions.json", 2, function streamProgress(fraction) {
+        window.GQLoader.progress((fraction * JSON_WEIGHT) / totalWeight);
+      });
     } catch (err) {
-      console.error("[GrammarQuest UI] init failed:", err);
-      $("#error-message").textContent = "We couldn't load the game data. " +
-        (location.protocol === "file:" ? "Serve the folder over http (for example with the Live Server extension) and reload." : "Please try again.");
-      showScreen("error");
+      console.warn("[GrammarQuest] question data failed to load:", err && err.message);
+      window.GQLoader.fail(
+        location.protocol === "file:"
+          ? "Open the game through a web server (http), not directly from disk."
+          : "We couldn\u2019t download the questions. Check your connection and retry."
+      );
+      return;
     }
+
+    const failures = await Assets.preload(essentials, function imageProgress(ratio) {
+      window.GQLoader.progress((JSON_WEIGHT + ratio * imagesWeight) / totalWeight);
+    });
+    if (failures.length) {
+      console.warn("[GrammarQuest] essential images failed:", failures);
+      window.GQLoader.fail("Some game artwork couldn\u2019t load. Check your connection and retry.");
+      return;
+    }
+
+    // Sentence pools come from the SAME parsed object — no second download.
+    buildSentencePools(data);
+
+    try {
+      await engine.init({ data });
+    } catch (err) {
+      console.warn("[GrammarQuest] engine rejected the data:", err && err.message);
+      window.GQLoader.fail("The game data seems broken. Please retry.");
+      return;
+    }
+
+    await window.GQLoader.finish();
+    bootAssetsReady = true;
+    warmDeferredAssets();
+    try { window.grammarQuestAudio.preload(); } catch (err) { /* game runs silent */ }
+    startNextActivity();
   }
 
   // Presentation-only sentence pools per level, used to build decoy targets
@@ -2658,28 +2858,26 @@
     ],
   };
 
-  function loadSentencePools() {
+  // Build the per-level decoy pools from the SAME parsed questions.json the
+  // engine received (no second network fetch). Pure presentation data —
+  // engine-graded content never comes from here.
+  function buildSentencePools(data) {
     ctx.sentencePool = {};
-    return fetch("data/questions.json")
-      .then((res) => res.json())
-      .then((data) => {
-        (data.levels || []).forEach((level) => {
-          const pool = [];
-          const add = (entry) => {
-            if (entry.text && !pool.some((p) => p.text === entry.text.trim())) {
-              pool.push({ text: entry.text.trim(), isCorrect: entry.isCorrect === true });
-            }
-          };
-          (level.challenges || []).forEach((challenge) => {
-            (challenge.questions || []).forEach((question) => {
-              if (question.type === "correct_incorrect") add(question);
-            });
-          });
-          (DECOY_SENTENCES[level.id] || []).forEach(add);
-          ctx.sentencePool[String(level.id)] = pool;
+    (data.levels || []).forEach((level) => {
+      const pool = [];
+      const add = (entry) => {
+        if (entry.text && !pool.some((p) => p.text === entry.text.trim())) {
+          pool.push({ text: entry.text.trim(), isCorrect: entry.isCorrect === true });
+        }
+      };
+      (level.challenges || []).forEach((challenge) => {
+        (challenge.questions || []).forEach((question) => {
+          if (question.type === "correct_incorrect") add(question);
         });
-      })
-      .catch(() => { /* waves degrade to single-target fallback */ });
+      });
+      (DECOY_SENTENCES[level.id] || []).forEach(add);
+      ctx.sentencePool[String(level.id)] = pool;
+    });
   }
 
   document.addEventListener("DOMContentLoaded", () => {
@@ -2687,10 +2885,27 @@
     syncSoundIcon();
     wireEngine();
     wireDom();
-    preload();
     boot();
-    try { window.grammarQuestAudio.preload(); } catch (err) {
+    // Core interaction sounds only (a few KB): the full 1.1 MB set preloads
+    // AFTER the loading screen finishes, so audio never competes with the
+    // essential images on a slow connection.
+    try {
+      window.grammarQuestAudio.preload(["uiClick", "targetPop", "answerCorrect", "answerWrong", "timerWarning"]);
+    } catch (err) {
       console.warn("[GrammarQuest audio] manager missing — game runs silent");
     }
+  });
+
+  // Production safety net: an unexpected script error or rejected promise
+  // must never leave the learner on a frozen field. Logged, toasted, and
+  // the game keeps running.
+  window.addEventListener("error", function (event) {
+    if (event && event.message) console.warn("[GrammarQuest] runtime error:", event.message);
+    if (ctx.screen === "game") toast("Something hiccuped — keep playing!", "wrong");
+  });
+  window.addEventListener("unhandledrejection", function (event) {
+    var reason = event && event.reason && event.reason.message ? event.reason.message : "unknown";
+    console.warn("[GrammarQuest] unhandled rejection:", reason);
+    if (ctx.screen === "game") toast("Something hiccuped — keep playing!", "wrong");
   });
 })();

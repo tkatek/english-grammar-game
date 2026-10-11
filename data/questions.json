@@ -123,7 +123,7 @@
           "type": "incorrect_sentence",
           "difficulty": "easy",
           "settings": {
-            "timeLimitSeconds": 90,
+            "timeLimitSeconds": 85,
             "lives": 3,
             "passingPercentage": 70,
             "questionCount": 4
@@ -217,7 +217,7 @@
           "type": "mixed",
           "difficulty": "medium",
           "settings": {
-            "timeLimitSeconds": 90,
+            "timeLimitSeconds": 80,
             "lives": 3,
             "passingPercentage": 70,
             "questionCount": 4,
@@ -438,7 +438,7 @@
           "type": "incorrect_sentence",
           "difficulty": "easy",
           "settings": {
-            "timeLimitSeconds": 85,
+            "timeLimitSeconds": 80,
             "lives": 3,
             "passingPercentage": 70,
             "questionCount": 4
@@ -532,7 +532,7 @@
           "type": "mixed",
           "difficulty": "medium",
           "settings": {
-            "timeLimitSeconds": 85,
+            "timeLimitSeconds": 75,
             "lives": 3,
             "passingPercentage": 70,
             "questionCount": 4,
@@ -753,7 +753,7 @@
           "type": "incorrect_sentence",
           "difficulty": "medium",
           "settings": {
-            "timeLimitSeconds": 75,
+            "timeLimitSeconds": 70,
             "lives": 3,
             "passingPercentage": 70,
             "questionCount": 4
@@ -847,7 +847,7 @@
           "type": "mixed",
           "difficulty": "hard",
           "settings": {
-            "timeLimitSeconds": 75,
+            "timeLimitSeconds": 65,
             "lives": 3,
             "passingPercentage": 70,
             "questionCount": 4,
@@ -1073,7 +1073,7 @@
           "type": "incorrect_sentence",
           "difficulty": "hard",
           "settings": {
-            "timeLimitSeconds": 65,
+            "timeLimitSeconds": 60,
             "lives": 2,
             "passingPercentage": 70,
             "questionCount": 4
@@ -1167,7 +1167,7 @@
           "type": "mixed",
           "difficulty": "hard",
           "settings": {
-            "timeLimitSeconds": 65,
+            "timeLimitSeconds": 55,
             "lives": 2,
             "passingPercentage": 70,
             "questionCount": 4,
@@ -1394,7 +1394,7 @@
           "type": "incorrect_sentence",
           "difficulty": "hard",
           "settings": {
-            "timeLimitSeconds": 55,
+            "timeLimitSeconds": 50,
             "lives": 2,
             "passingPercentage": 70,
             "questionCount": 4
@@ -1488,7 +1488,7 @@
           "type": "mixed",
           "difficulty": "expert",
           "settings": {
-            "timeLimitSeconds": 55,
+            "timeLimitSeconds": 45,
             "lives": 2,
             "passingPercentage": 70,
             "questionCount": 4,
