@@ -3247,7 +3247,7 @@ body.reduce-motion .hammer-cursor.is-whacking .hammer-cursor__img {
     radial-gradient(96% 96% at 50% 30%, #FFE07A 0%, #FFC531 46%, #F0A81C 78%, #D98A0B 100%);
   border: 3px solid #E8A81E;
   box-shadow:
-    inset 0 0 0 3px rgba(255, 244, 200, 0.85),   /* bright inner ring */
+    inset 0 0 0 2.5px rgba(255, 238, 176, 0.8),  /* warm inner ring */
     inset 0 -10px 20px rgba(163, 96, 0, 0.35),   /* bottom shading    */
     0 10px 24px rgba(20, 12, 48, 0.45),          /* drop shadow       */
     0 0 26px 6px rgba(255, 197, 49, 0.55);       /* soft golden glow  */
@@ -3255,9 +3255,12 @@ body.reduce-motion .hammer-cursor.is-whacking .hammer-cursor__img {
 }
 
 .pause-play__icon {
-  width: 42%;
-  height: 42%;
-  margin-left: 7%;        /* optical centring for a right-pointing triangle */
+  width: 47%;
+  height: 47%;
+  /* The Lucide #i-play path spans x 8..20.5 inside its 0 0 24 24 viewBox, so
+     the glyph itself is 2.25u (9.375%) right of the box centre. Nudge it back
+     to land the visible triangle — not just its box — on the coin's centre. */
+  transform: translateX(-9.375%);
   fill: #2A1A5E;          /* dark purple play mark */
   filter: drop-shadow(0 2px 2px rgba(90, 50, 0, 0.35));
 }
