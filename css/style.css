@@ -2572,7 +2572,7 @@ body.reduce-motion .instruction { transition: none; }
 .mole__bubble--side-l,
 .mole__bubble--side-r {
   bottom: auto;
-  top: 16%;
+  top: var(--chip-top, 16%);
   transform: none;
   max-width: 46vw;
   text-align: left;
@@ -2865,24 +2865,26 @@ body.reduce-motion .mole__speak.is-speaking::after { animation: none; }
 
 /* Word-chip targets (missing-word options): single words render smaller than
  * sentence dogs so every option always fits on the field together — never
- * drop an option, or the wrong-answer reveal could lose its target. */
-.mole.mole--word { width: clamp(82px, 24vw, 118px); }
+ * drop an option, or the wrong-answer reveal could lose its target. The
+ * layout engine sizes every mascot to its painted hole via --mole-w; the
+ * clamps are only the fallback when no hole size was computed. */
+.mole.mole--word { width: var(--mole-w, clamp(82px, 24vw, 118px)); }
 
 /* The full-width desktop artwork has large painted holes, so the characters
  * need a stronger scale than the phone-first defaults. Sentence animals stay
  * largest; short word-option animals are only slightly smaller so they remain
  * the main targets instead of looking like tiny decorations in the holes. */
 @media (min-width: 601px) {
-  .mole.mole--word { width: clamp(110px, 15vw, 150px); }
+  .mole.mole--word { width: var(--mole-w, clamp(110px, 15vw, 150px)); }
 }
 
 @media (min-width: 1025px) and (min-height: 641px) {
-  .mole { width: clamp(180px, 12vw, 240px); }
-  .mole.mole--word { width: clamp(150px, 9vw, 190px); }
+  .mole { width: var(--mole-w, clamp(180px, 12vw, 240px)); }
+  .mole.mole--word { width: var(--mole-w, clamp(150px, 9vw, 190px)); }
 }
 
 @media (max-height: 640px) {
-  .mole.mole--word { width: clamp(82px, 16.5vh, 118px); }
+  .mole.mole--word { width: var(--mole-w, clamp(82px, 16.5vh, 118px)); }
 }
 
 .mole.mole--word .mole__bubble {

@@ -1693,7 +1693,7 @@
     // line wrapping measured against the content width (6px safety).
     const estBubbleFor = (font) => (t) => {
       const textPx = String(t).length * font * 0.52;
-      const w = Math.max(compact ? 64 : 84, Math.min(capW, textPx + 26));
+      const w = Math.max(compact ? 64 : 84, Math.min(capW, textPx + 34));
       const lines = Math.max(1, Math.ceil(textPx / Math.max(22, w - 32)));
       const h = lines * font * 1.34 + 22;
       return { w, h };
@@ -1707,7 +1707,13 @@
     })();
 
     const maxMoleW = holes[0].w * 1.06; // never wider than the painted opening
-    const scales = compact ? [1, 0.9, 0.8, 0.7, 0.62, 0.55] : [1, 0.9, 0.82, 0.74, 0.66];
+    // Very narrow phone fields (<340px) need deeper shrink steps: four
+    // sentence chips cannot clear the painted row gap at the normal floor.
+    const narrow = fw < 340;
+    const scales = compact
+      ? (narrow ? [1, 0.9, 0.8, 0.7, 0.62, 0.55, 0.48, 0.42] : [1, 0.9, 0.8, 0.7, 0.62, 0.55])
+      : [1, 0.9, 0.82, 0.74, 0.66];
+    const fontFloor = compact ? (narrow ? 11 : 12) : 12.5;
     const intersects = (a, b) => a.l < b.r - 1 && a.r > b.l + 1 && a.t < b.b - 1 && a.b > b.t + 1;
 
     let bestPartial = null;
@@ -1715,8 +1721,8 @@
       if (cands.length && (!bestPartial || cands.length > bestPartial.length)) bestPartial = cands;
     };
     const commit = (cands) => {
-      ctx.lastWaveSig = cands.map((c) => c.hole.x + "/" + c.hole.y).sort().join("|");
-      ctx.lastHoleKey = cands[0].hole;
+      ctx.lastWaveSig = cands.map((c) => c.hole.hole.x + "/" + c.hole.hole.y).sort().join("|");
+      ctx.lastHoleKey = cands[0].hole.hole;
       return cands;
     };
 
@@ -1727,7 +1733,7 @@
       // The WHOLE stack shrinks with the ladder — mascot and bubble together —
       // otherwise a full-height bubble keeps colliding with the dog in the
       // hole above. Fonts stop at a readability floor.
-      const font = Math.max(compact ? 12 : 12.5, fontPx * Math.max(0.85, scale));
+      const font = Math.max(fontFloor, fontPx * Math.max(0.85, scale));
       const est = estBubbleFor(font);
       const bubbles = widestTextFirst.map((e) => est(e.t));
       const mkBoxes = (hole, bubble) => {
@@ -1756,7 +1762,7 @@
           for (const dir of [hole.cx < fw / 2 ? -1 : 1, hole.cx < fw / 2 ? 1 : -1]) {
             const box = side(dir);
             if (box.l >= 2 && box.r <= fw - 2 && box.b < fh - 4) {
-              modes.push({ box, mode: dir < 0 ? "side-l" : "side-r" });
+              modes.push({ box, mode: dir < 0 ? "side-l" : "side-r", chipTop: 0.16 });
             }
           }
         }
@@ -1779,61 +1785,63 @@
             ok = chosen.every((c) =>
               !intersects(m.box, c.bubbleBox) && !intersects(m.box, c.mole) &&
               !intersects(cand.mole, c.bubbleBox) && !intersects(cand.mole, c.mole));
-            if (ok) { cand.bubbleBox = m.box; cand.mode = m.mode; cand.textIndex = entry.i; break; }
+            if (ok) { cand.bubbleBox = m.box; cand.mode = m.mode; cand.chipTop = m.chipTop; cand.textIndex = entry.i; break; }
           }
           if (ok) chosen.push(cand);
         }
         if (!chosen.length) continue;
         if (chosen.length < bubbles.length) { remember(chosen); continue; }
-        const sig = chosen.map((c) => c.hole.x + "/" + c.hole.y).sort().join("|");
+        const sig = chosen.map((c) => c.hole.hole.x + "/" + c.hole.hole.y).sort().join("|");
         if (sig === ctx.lastWaveSig && attempt < 9) { remember(chosen); continue; }
         return commit(chosen);
       }
     }
     // opts.force — options may NEVER be dropped (the engine's correct answer
     // is among them): park any unplaced option in a still-unused painted hole
-    // with a minimal chip, tolerating box overlap. Every animal still stands
-    // in a real hole; a tight board beats a missing answer.
+    // with a minimal chip, tolerating a minor box overlap. Every animal still
+    // stands in a real hole; a tight board beats a missing answer.
     if (opts && opts.force && holes.length) {
-      const font = compact ? 12 : 12.5;
+      const font = compact ? (fw < 340 ? 11.5 : 12) : 12.5;
       const est = estBubbleFor(font);
       const moleW = Math.min(baseMoleW * 0.55, maxMoleW);
       const clipH = moleW * 1.04;
       const used = new Set((bestPartial || []).map((c) => c.hole));
       const out = (bestPartial || []).slice();
+      const placedBoxes = out.flatMap((c) => [c.mole, c.bubbleBox]);
       for (let k = out.length; k < textList.length; k++) {
         const entry = widestTextFirst[k];
-        const hole = holes.find((h) => !used.has(h.hole)) || holes[k % holes.length];
-        used.add(hole.hole);
+        const hole = holes.find((h) => !used.has(h)) || holes[k % holes.length];
+        used.add(hole);
         const bubble = est(entry.t);
         const sink = hole.h * HOLE_SINK;
         const footY = hole.cy + sink;
         const moleTop = footY - clipH;
+        const mole = { l: hole.cx - moleW / 2, t: moleTop, r: hole.cx + moleW / 2, b: footY };
         let mode = "above";
+        let chipTop = null;
         let bubbleBox = { l: hole.cx - bubble.w / 2, t: moleTop - 6, r: hole.cx + bubble.w / 2, b: moleTop };
-        if (compact) {
-          // A chip at head height on the inboard side usually clears the
-          // busier centre of the field better than another stacked bubble.
-          const yT = moleTop + clipH * 0.16;
-          for (const dir of [hole.cx < fw / 2 ? 1 : -1, hole.cx < fw / 2 ? -1 : 1]) {
-            const l = dir < 0 ? hole.cx - moleW / 2 - 6 - bubble.w : hole.cx + moleW / 2 + 6;
-            const box = { l, t: yT, r: l + bubble.w, b: yT + bubble.h };
-            if (box.l >= 2 && box.r <= fw - 2 && box.b < fh - 4) {
+        const aboveOk = bubbleBox.l >= 2 && bubbleBox.r <= fw - 2 && bubbleBox.t >= topLimit - bubble.h * 0.45;
+        if (compact && !aboveOk) {
+          // Chips at head height, outboard first, stepping DOWN the body when
+          // an earlier chip already owns that band — forced extras stagger
+          // instead of piling onto one another.
+          const dirs = [hole.cx < fw / 2 ? -1 : 1, hole.cx < fw / 2 ? 1 : -1];
+          outer:
+          for (let drop = 0; drop <= 2; drop++) {
+            const yT = moleTop + clipH * (0.16 + drop * 0.3);
+            for (const dir of dirs) {
+              const l = dir < 0 ? hole.cx - moleW / 2 - 6 - bubble.w : hole.cx + moleW / 2 + 6;
+              const box = { l, t: yT, r: l + bubble.w, b: yT + bubble.h };
+              if (box.l < 2 || box.r > fw - 2 || box.b >= fh - 4) continue;
               mode = dir < 0 ? "side-l" : "side-r";
+              chipTop = 0.16 + drop * 0.3;
               bubbleBox = box;
-              break;
+              if (placedBoxes.every((b) => !intersects(box, b))) break outer;
             }
           }
         }
-        out.push({
-          hole,
-          textIndex: entry.i,
-          footY,
-          moleW, clipH, bubble, font,
-          mode,
-          mole: { l: hole.cx - moleW / 2, t: moleTop, r: hole.cx + moleW / 2, b: footY },
-          bubbleBox,
-        });
+        out.push({ hole, textIndex: entry.i, footY, moleW, clipH, bubble, font, mode, chipTop, mole, bubbleBox });
+        placedBoxes.push(mole, bubbleBox);
       }
       return commit(out);
     }
@@ -1865,7 +1873,7 @@
         index: i,
         label: item.text,
         delay: i * 70,
-        size: { moleW: b.moleW, clipH: b.clipH, bubbleW: b.bubble.w, fontPx: b.font, mode: b.mode },
+        size: { moleW: b.moleW, clipH: b.clipH, bubbleW: b.bubble.w, fontPx: b.font, mode: b.mode, chipTop: b.chipTop },
         onTap: () => submitClaim(item.claim !== undefined ? item.claim : item.text, mole),
       });
       ctx.moleIndex = (ctx.moleIndex + 1) % NEUTRAL_KEYS.length;
@@ -1913,7 +1921,7 @@
         label: 'Answer: ' + option,
         delay: i * 70,
         word: true,
-        size: { moleW: b.moleW, clipH: b.clipH, bubbleW: b.bubble.w, fontPx: b.font, mode: b.mode },
+        size: { moleW: b.moleW, clipH: b.clipH, bubbleW: b.bubble.w, fontPx: b.font, mode: b.mode, chipTop: b.chipTop },
         onTap: () => submitClaim(option, mole),
       });
       ctx.activeMoles.push({ el: mole, text: String(option) });
@@ -1938,7 +1946,8 @@
       (size.mode === "side-r" ? " mole__bubble--side-r" : "");
     const bubbleStyle = "animation-delay:" + (140 + delay) + "ms" +
       (size.bubbleW ? ";max-width:" + Math.round(size.bubbleW) + "px;min-width:" + Math.round(Math.min(size.bubbleW, 64)) + "px" : "") +
-      (size.fontPx ? ";font-size:" + Math.round(size.fontPx * 10) / 10 + "px" : "");
+      (size.fontPx ? ";font-size:" + Math.round(size.fontPx * 10) / 10 + "px" : "") +
+      (size.chipTop != null ? ";--chip-top:" + Math.round(size.chipTop * 1000) / 10 + "%" : "");
     const bubble = el("span", { class: bubbleClass, style: bubbleStyle });
     bubble.appendChild(document.createTextNode(options.bubble));
     if (Speech.supported && options.bubble) {
