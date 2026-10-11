@@ -1581,7 +1581,12 @@
       return cands;
     };
     for (let attempt = 0; attempt < 16; attempt++) {
-      const order = shuffleList(layout.top.concat(layout.bottom));
+      // Phones: the artwork's two bottom holes make the classic side-by-side
+      // pair (like the reference) — try that row first before mixing rows.
+      const pool = (tier === "mobile" && attempt < 10)
+        ? layout.bottom
+        : layout.top.concat(layout.bottom);
+      const order = shuffleList(pool);
       const chosen = [];
       for (let h of order) {
         if (chosen.length >= count) break;
@@ -2678,8 +2683,9 @@
       items.push({ src: Assets.pick(FIELD_BG_URLS.mobile), weight: 8 });
     }
     if (finePointer) items.push({ src: HAMMER_URL, weight: 2 });
-    // The ornate answer-card skin shows on the very first answer — warm it
-    // with the essentials so it never pops in late.
+    // The ornate card skins show immediately — warm them with the essentials
+    // so neither ever pops in late.
+    items.push({ src: "assets/images/question-pill.webp", weight: 4 });
     items.push({ src: "assets/images/feedback-card.webp", weight: 3 });
     return items.filter((it) => !!it.src);
   }

@@ -349,9 +349,15 @@
 
         <div class="instruction" id="instruction">
           <span class="instruction__badge" id="instruction-badge" aria-hidden="true">1</span>
-          <svg class="instruction__sparkle" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sparkle"/></svg>
+          <span class="instruction__orn" aria-hidden="true">
+            <i class="instruction__orn-line"></i>
+            <svg class="instruction__orn-star" viewBox="0 0 24 24"><use href="#i-star"/></svg>
+          </span>
           <p class="instruction__text" id="instruction-text">Tap the correct sentence</p>
-          <svg class="instruction__sparkle instruction__sparkle--right" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sparkle"/></svg>
+          <span class="instruction__orn" aria-hidden="true">
+            <svg class="instruction__orn-star" viewBox="0 0 24 24"><use href="#i-star"/></svg>
+            <i class="instruction__orn-line"></i>
+          </span>
           <p class="instruction__hint" id="instruction-hint" hidden></p>
           <p class="instruction__sentence" id="instruction-sentence" hidden></p>
           <div class="instruction__timer" id="instruction-timer" aria-hidden="true">
