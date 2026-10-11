@@ -2192,6 +2192,24 @@ body.reduce-motion .loading__bar-fill::after { animation: none; }
   background-position: top center;
 }
 
+/* JS artwork tiers (syncFieldArtwork in ui.js): the MEASURED field aspect
+   decides which painting is displayed, so the background and the hole map
+   used for animal placement are always the same artwork — the window-width
+   media queries above are only the first-paint guess. Kept after them on
+   purpose so these always win. */
+.whack.whack--art-desktop .whack__bg {
+  background-image: url("../assets/images/game-bg-desktop.jpg");
+  background-position: center;
+}
+.whack.whack--art-tablet .whack__bg {
+  background-image: url("../assets/images/game-bg-tablet.jpg");
+  background-position: center;
+}
+.whack.whack--art-mobile .whack__bg {
+  background-image: url("../assets/images/game-bg-mobile.jpg");
+  background-position: top center;
+}
+
 /* WebP variants (~40% lighter) wherever the browser supports them */
 @supports (background-image: image-set("a.webp" type("image/webp"))) {
   .whack__bg {
@@ -2217,6 +2235,24 @@ body.reduce-motion .loading__bar-fill::after { animation: none; }
     }
   }
   .whack.whack--tall .whack__bg {
+    background-image: image-set(
+      url("../assets/images/game-bg-mobile.webp") type("image/webp"),
+      url("../assets/images/game-bg-mobile.jpg") type("image/jpeg")
+    );
+  }
+  .whack.whack--art-desktop .whack__bg {
+    background-image: image-set(
+      url("../assets/images/game-bg-desktop.webp") type("image/webp"),
+      url("../assets/images/game-bg-desktop.jpg") type("image/jpeg")
+    );
+  }
+  .whack.whack--art-tablet .whack__bg {
+    background-image: image-set(
+      url("../assets/images/game-bg-tablet.webp") type("image/webp"),
+      url("../assets/images/game-bg-tablet.jpg") type("image/jpeg")
+    );
+  }
+  .whack.whack--art-mobile .whack__bg {
     background-image: image-set(
       url("../assets/images/game-bg-mobile.webp") type("image/webp"),
       url("../assets/images/game-bg-mobile.jpg") type("image/jpeg")
@@ -2430,9 +2466,11 @@ body.reduce-motion .instruction { transition: none; }
   position: absolute;
   left: 50%;
   /* inline style sets left:x% and bottom:(100-y)% so the button's BOTTOM
-     sits exactly on the hole centre; the in-flow clip rises upward from it */
+     sits inside the painted hole (y includes the rim sink); the in-flow clip
+     rises upward from it. --mole-w/--mole-clip-h come from the layout engine,
+     which sizes the mascot to the painted hole it stands in. */
   transform: translateX(-50%);
-  width: clamp(116px, 14.5vw, 200px);
+  width: var(--mole-w, clamp(116px, 14.5vw, 200px));
   z-index: 3;
   padding: 0;
   background: none;
@@ -2444,7 +2482,9 @@ body.reduce-motion .instruction { transition: none; }
   display: block;
   position: relative;
   width: 100%;
+  /* full body when no explicit clip height is given (aspect fallback) */
   aspect-ratio: 1 / 1.04;
+  height: var(--mole-clip-h, auto);
   overflow: hidden;
   border-radius: 16px 16px 0 0;
 }
@@ -2509,7 +2549,7 @@ body.reduce-motion .instruction { transition: none; }
   box-shadow: 0 5px 14px rgba(20, 12, 48, 0.3);
   opacity: 0;
   animation: bubble-in 200ms ease 110ms forwards;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   cursor: pointer;
   text-wrap: balance;
 }
@@ -2525,20 +2565,47 @@ body.reduce-motion .instruction { transition: none; }
   border-bottom: 0;
 }
 
-/* Fanned waves (word-option chips the painted holes cannot host): the JS
-   placement sets --fan-bubble-max to each bubble's exact slice of the field,
-   so fanned neighbours never touch visually — even on 320px screens. */
-.yard--fan .mole__bubble { max-width: var(--fan-bubble-max, 150px); }
+/* Word chips the layout engine hangs BESIDE the animal (stacked phone hole
+   rows leave no room above both dogs): the bubble sits at muzzle height on
+   the assigned side with its tail touching the animal. Sentence bubbles
+   always stay above their animal. */
+.mole__bubble--side-l,
+.mole__bubble--side-r {
+  bottom: auto;
+  top: 16%;
+  transform: none;
+  max-width: 46vw;
+  text-align: left;
+  animation: bubble-side-in 200ms ease 110ms forwards;
+}
+.mole__bubble--side-l { left: auto; right: 100%; }
+.mole__bubble--side-r { left: 100%; transform: none; }
 
-@media (max-width: 820px) {
-  .yard--fan .mole__bubble { font-size: 13px; padding: 6px 8px; }
+.mole__bubble--side-l::after,
+.mole__bubble--side-r::after {
+  bottom: auto;
+  left: auto;
+  right: auto;
+  top: 50%;
+}
+.mole__bubble--side-l::after {
+  right: -8px;
+  transform: translateY(-50%) rotate(-90deg);
+}
+.mole__bubble--side-r::after {
+  left: -8px;
+  transform: translateY(-50%) rotate(90deg);
 }
 
-/* Sentence bubbles are capped to the tightest painted hole-row gap (the JS
-   placement sets --sentence-bubble-max each wave) so a whole row of animals
-   can stand on the painted holes without their bubbles touching. */
-.yard .mole:not(.mole--word) .mole__bubble {
-  max-width: var(--sentence-bubble-max, min(320px, 27vw));
+@keyframes bubble-side-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Readability floor on small phones: bubbles never shrink below this even
+   when the layout ladder compresses the wave. */
+@media (max-width: 460px) {
+  .mole__bubble { font-size: max(13px, 3.4vw); padding: 7px 10px; }
 }
 
 @keyframes bubble-in {

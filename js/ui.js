@@ -14,27 +14,38 @@
 
   /* ----------------------------- constants ----------------------------- */
 
-  // Painted-hole maps measured from the three supplied gameplay artworks.
+  // Painted-hole maps measured from the three supplied gameplay artworks
+  // (blob detection over the dark hole openings — see .tools/detect-holes.js).
   // Coordinates are percent positions IN EACH IMAGE; mapHole() converts them
   // to field percent under background-size:cover/center so targets sit on the
-  // painted holes at every field aspect ratio.
+  // painted holes at every field aspect ratio. holeW/holeH are the painted
+  // opening extents (image %) used to size the mascot and sink its feet into
+  // the hole so the painted front rim frames the body.
   const HOLE_LAYOUTS = {
     desktop: {
       aspect: 1672 / 941,
-      top: [{ x: 28.3, y: 49.8 }, { x: 49.7, y: 49.8 }, { x: 71.1, y: 49.8 }],
-      bottom: [{ x: 31.8, y: 67.3 }, { x: 53.9, y: 67.3 }, { x: 75.6, y: 67.3 }],
+      top: [{ x: 28.6, y: 49.4 }, { x: 50.0, y: 49.4 }, { x: 71.6, y: 49.4 }],
+      bottom: [{ x: 32.1, y: 67.1 }, { x: 54.1, y: 67.1 }, { x: 75.9, y: 67.1 }],
+      holeW: 11.2, holeH: 6.6,
     },
     tablet: {
       aspect: 1448 / 1086,
-      top: [{ x: 33.0, y: 47.6 }, { x: 66.4, y: 47.6 }],
-      bottom: [{ x: 22.4, y: 64.9 }, { x: 49.5, y: 64.9 }, { x: 76.8, y: 64.9 }],
+      top: [{ x: 33.3, y: 47.3 }, { x: 66.4, y: 47.3 }],
+      bottom: [{ x: 22.5, y: 64.4 }, { x: 49.8, y: 64.4 }, { x: 77.2, y: 64.4 }],
+      holeW: 14.0, holeH: 7.9,
     },
     mobile: {
       aspect: 941 / 1672,
-      top: [{ x: 28.8, y: 50.9 }, { x: 70.9, y: 50.9 }],
-      bottom: [{ x: 26.9, y: 65.3 }, { x: 72.3, y: 65.3 }],
+      top: [{ x: 29.1, y: 50.8 }, { x: 71.1, y: 50.8 }],
+      bottom: [{ x: 27.1, y: 65.2 }, { x: 72.5, y: 65.2 }],
+      holeW: 24.2, holeH: 5.2,
     },
   };
+  // How deep the mascot's feet sit below the hole's vertical centre (fraction
+  // of the painted hole height). The clip ends inside the dark opening, so the
+  // painted front rim stays visible below the body and the dog reads as
+  // standing IN the hole rather than on the grass in front of it.
+  const HOLE_SINK = 0.34;
   // Centralized Prairie Dog asset map — the ONLY gameplay target characters.
   // Reactions reflect the LEARNER'S action result (engine answerCorrect/Wrong),
   // never the grammar of the sentence itself.
@@ -1123,36 +1134,88 @@
 
   /* ============================== GAMEPLAY ============================= */
 
-  // Device class follows the SAME thresholds as the CSS background swaps
-  // (mobile <= 600, tablet <= 1024, desktop > 1024) so the hole map always
-  // matches the artwork actually displayed.
-  function yardTier() {
-    const w = window.innerWidth;
-    if (w <= 600) return 'mobile';
-    // Portrait tablets: the 4:3 tablet artwork cover-crops so hard its outer
-    // holes fall off-frame — tall fields use the portrait artwork instead.
-    const yard = document.querySelector('#whack');
-    if (yard && yard.clientHeight > 0 && yard.clientWidth / yard.clientHeight < 0.9) return 'mobile';
-    return w <= 1024 ? 'tablet' : 'desktop';
+  // Field tier is derived from the MEASURED play-field box (not the window):
+  // the hole map and the displayed artwork must be the same painting, and a
+  // portrait tablet/landscape phone can render any aspect. The thresholds
+  // bracket each artwork so its painted holes stay inside the cover crop
+  // (desktop art needs aspect >= ~1.1, tablet art works 0.85-1.15, the tall
+  // phone painting below that). syncFieldArtwork() applies the matching
+  // .whack--art-* class so the CSS background and the hole map always agree.
+  function yardTier(fieldW, fieldH) {
+    const a = fieldW / Math.max(1, fieldH);
+    if (a >= 1.12) return "desktop";
+    if (a >= 0.85) return "tablet";
+    return "mobile";
   }
 
-  // Convert an in-image percent position to field percent for a
-  // background-size:cover artwork of the given aspect.
+  // Measured play-field box. A field that has not been laid out yet (webview
+  // still opening, dvh rounding, platform container mid-resize) reports 0x0 —
+  // callers must NOT lay a wave out against garbage dimensions.
+  function fieldBox() {
+    const yard = document.getElementById("yard");
+    if (!yard) return null;
+    let w = yard.clientWidth;
+    let h = yard.clientHeight;
+    if (w < 60 || h < 60) {
+      const r = yard.getBoundingClientRect();
+      w = r.width;
+      h = r.height;
+    }
+    if (w < 60 || h < 60) return null;
+    return { w, h };
+  }
+
+  // Apply the artwork tier class for the CURRENT field box so the painted
+  // background always matches the hole map used for placement. Falls back to
+  // the window-width guess when the field cannot be measured yet.
+  function syncFieldArtwork() {
+    const whack = document.getElementById("whack");
+    if (!whack) return "desktop";
+    const box = fieldBox();
+    const tier = box ? yardTier(box.w, box.h)
+      : (window.innerWidth <= 600 ? "mobile" : window.innerWidth <= 1024 ? "tablet" : "desktop");
+    whack.classList.remove("whack--art-desktop", "whack--art-tablet", "whack--art-mobile");
+    whack.classList.add("whack--art-" + tier);
+    return tier;
+  }
+
+  // Artwork-space percent -> field-space percent for the tier's
+  // background-size:cover artwork (top-anchored on the tall phone painting,
+  // matching the CSS background-position).
   function mapHole(pos, tier, fieldW, fieldH) {
     const layout = HOLE_LAYOUTS[tier];
     const a = layout.aspect;
     const s = Math.max(fieldW / a, fieldH); // image drawn at width a*s, height s
     const ox = (a * s - fieldW) / 2;
-    // The portrait phone artwork is pinned to the TOP of the field (CSS
-    // background-position: top center) because the stacked Pause row and
-    // instruction card overlay the top of the field — center-cropping would
-    // lift the painted holes up behind them. Mirror that anchor here so the
-    // moles stand exactly on the painted holes.
     const oy = tier === "mobile" ? 0 : (s - fieldH) / 2;
     return {
       x: ((pos.x / 100) * a * s - ox) / fieldW * 100,
       y: ((pos.y / 100) * s - oy) / fieldH * 100,
     };
+  }
+
+  // Painted hole geometry in field pixels for a tier/field box: centre plus
+  // the opening's width/height after the same cover transform mapHole uses.
+  function holeBoxes(tier, fw, fh) {
+    const layout = HOLE_LAYOUTS[tier];
+    const a = layout.aspect;
+    const s = Math.max(fw / a, fh);
+    const ox = (a * s - fw) / 2;
+    const oy = tier === "mobile" ? 0 : (s - fh) / 2;
+    const holeW = (layout.holeW / 100) * a * s;
+    const holeH = (layout.holeH / 100) * s;
+    return layout.bottom.concat(layout.top)
+      .map((h) => ({
+        hole: h,
+        row: layout.bottom.includes(h) ? "bottom" : "top",
+        cx: (h.x / 100) * a * s - ox,
+        cy: (h.y / 100) * s - oy,
+        w: holeW,
+        h: holeH,
+      }))
+      // Off-frame under a hard crop or pinned to the very bottom edge: the
+      // painted hole is not usable there.
+      .filter((b) => b.cx > b.w * 0.2 && b.cx < fw - b.w * 0.2 && b.cy < fh - 4);
   }
 
   function shuffleList(list) {
@@ -1173,6 +1236,7 @@
     ctx.question = null;
     ctx.questionLocked = false;
     ctx.lastHoleKey = null;
+    cancelFeedbackCard(); // a new challenge invalidates any pending verdict
     Speech.stop(); // never carry a reading across challenge restarts
     clearSpeakingMarks();
 
@@ -1199,7 +1263,7 @@
     $("#binary").hidden = true;
     hideFeedback();
     showScreen("game");
-    yardTier();
+    syncFieldArtwork();
   }
 
   function setProgress(answered, total, currentNumber) {
@@ -1250,12 +1314,8 @@
     burst.addEventListener("animationend", () => burst.remove(), { once: true });
   }
 
-  function syncFieldArtwork() {
-    const yard = document.querySelector("#whack");
-    if (!yard) return;
-    const tall = yard.clientWidth > 0 && yard.clientWidth / yard.clientHeight < 0.9;
-    yard.classList.toggle("whack--tall", tall);
-  }
+  // (artwork tier classes are applied by the syncFieldArtwork() defined with
+  //  the hole maps above — one source of truth for background + placement)
 
   /* ----- Question read beat ---------------------------------------------
    * Every question first takes CENTER STAGE for ~2s so the learner reads it,
@@ -1384,10 +1444,13 @@
 
     const yard = $("#yard");
     const binary = $("#binary");
-    const tier = yardTier();
+    // Window-width guess for the intro card artwork; beginPlay re-derives the
+    // real tier from the measured field right before the board spawns.
+    const tier = window.innerWidth <= 600 ? "mobile" : window.innerWidth <= 1024 ? "tablet" : "desktop";
     const q = payload.question;
     clearNode(yard);
     hideFeedback();
+    cancelFeedbackCard(); // a card scheduled for THIS question can never leak into the next one
     binary.hidden = true;
     syncFieldArtwork();
     Speech.stop(); // never talk across questions
@@ -1437,26 +1500,42 @@
     // Board build — deferred until the read beat ends (startQuestionIntro).
     const beginPlay = () => {
       if (ctx.screen !== "game" || ctx.question !== q) return; // moved on mid-flight
+      // The field tier must be re-derived NOW (rotations during the read beat
+      // change the displayed artwork, and the hole map must match it). A
+      // field that has not been laid out yet (webview opening, container
+      // mid-resize) must never receive a wave built against 1x1 garbage —
+      // retry on animation frames until the box is real.
+      if (!fieldBox()) {
+        let tries = 0;
+        const waitLayout = () => {
+          if (ctx.screen !== "game" || ctx.question !== q) return;
+          if (fieldBox()) { beginPlay(); return; }
+          if (++tries < 240) requestAnimationFrame(waitLayout);
+        };
+        requestAnimationFrame(waitLayout);
+        return;
+      }
+      const liveTier = syncFieldArtwork() || tier;
       if (q.type === "correct_incorrect") {
-        const wave = buildSentenceWave(q, tier);
+        const wave = buildSentenceWave(q, liveTier);
         if (wave) {
-          spawnWave(yard, tier, wave);
+          spawnWave(yard, liveTier, wave);
         } else {
           // Fallback (no decoy data): single mascot + Correct/Mistake paddles.
-          const layout = HOLE_LAYOUTS[tier];
+          const layout = HOLE_LAYOUTS[liveTier];
           const pool = layout.bottom.concat(layout.top);
           let hole = pool[Math.floor(Math.random() * pool.length)];
           if (ctx.lastHoleKey && hole.x === ctx.lastHoleKey.x && hole.y === ctx.lastHoleKey.y) {
             hole = pool[(pool.indexOf(hole) + 1) % pool.length];
           }
           ctx.lastHoleKey = hole;
-          spawnWave(yard, tier, [{ text: q.text || "", claim: ctx.tapMeansCorrect }], true);
+          spawnWave(yard, liveTier, [{ text: q.text || "", claim: ctx.tapMeansCorrect }], true);
           binary.hidden = false;
         }
       } else if (q.type === "missing_word" || q.type === "multiple_choice") {
-        spawnOptionMoles(yard, tier, q);
+        spawnOptionMoles(yard, liveTier, q);
       } else {
-        spawnOptionMoles(yard, tier, { options: (Array.isArray(q.options) ? q.options : ["true", "false"]) });
+        spawnOptionMoles(yard, liveTier, { options: (Array.isArray(q.options) ? q.options : ["true", "false"]) });
       }
       // New wave is live: the hammer may swing again.
       HammerCursor.arm();
@@ -1543,239 +1622,250 @@
   }
 
   function waveTargetCount(tier, longestOwn, decoyTexts) {
-    // Teacher's rule: every wave fields AT LEAST three animals on every
-    // device — two animals is only a 50/50 guess. Wide desktop fields
-    // sometimes host a fourth for extra challenge.
-    if (tier === "desktop") return Math.random() < 0.3 ? 4 : 3;
+    // Teacher's rule: every wave fields AT LEAST three animals — two animals
+    // is only a 50/50 guess. The phone painting hosts the classic bottom pair
+    // for sentence bubbles (its rows sit too close for a third above-bubble),
+    // every wider artwork rows three.
+    if (tier === "mobile") return 2;
     return 3;
   }
 
-  // Pick holes whose estimated mascot + bubble boxes never collide and stay
-  // out of the instruction (top) and feedback (bottom) safe zones.
-  // opts.compact  — single-word option chips (far smaller than sentences)
-  // opts.relaxTop — bubbles may cross the instruction zone when the field
-  //                 otherwise cannot host every target. Used only for option
-  //                 waves: dropping an option by position could drop the
-  //                 engine's correct answer, leaving the wrong-answer reveal
-  //                 with no target to highlight.
-  function pickWaveHoles(tier, count, fw, fh, texts, opts) {
-    const layout = HOLE_LAYOUTS[tier];
+  /* ----- Hole-anchored wave layout ---------------------------------------
+   * Every animal is placed on a PAINTED hole from the displayed artwork —
+   * never on open grass. The layout engine walks a shrink ladder (mascot +
+   * bubble scale together) and, for compact word options only, may hang a
+   * bubble BESIDE the mascot when the space above is taken; sentence bubbles
+   * always sit above their animal. Constraints honoured for every placement:
+   *   - mascot feet sunk into the hole (painted front rim stays visible)
+   *   - mascot width never exceeds the painted opening
+   *   - bubbles never overlap each other, another mascot, or the instruction
+   *     card, and never clip outside the field
+   * opts.compact — word-option chips. opts.relaxTop — last-resort tolerance
+   * letting a bubble tuck partly under the instruction card (only tried
+   * after everything else, so options are never dropped).
+   * Returns placements [{hole, pos, moleW, clipH, bubbleW, bubbleH, mode}] —
+   * possibly fewer than `count` when the field genuinely cannot host them
+   * (sentence waves then trim, keeping the satisfying target).
+   * --------------------------------------------------------------------- */
+  function layoutWave(tier, fw, fh, texts, opts) {
     const compact = !!(opts && opts.compact);
-    const short = fh < 420;
-    // Relaxed mode lets option bubbles cross the instruction zone. On SHORT
-    // fields (landscape phones) the card eats so much height that "crossing"
-    // means hiding bubble text behind the opaque card — there the fan below
-    // the card is used instead, so the option wave stays fully readable.
-    const relaxTop = !!(opts && opts.relaxTop) && !short;
+    const relaxTop = !!(opts && opts.relaxTop);
+    const holes = holeBoxes(tier, fw, fh);
+    if (!holes.length) return [];
     const vw = window.innerWidth;
-    const fanYard = document.getElementById("yard");
-    if (fanYard) fanYard.classList.remove("yard--fan"); // re-added by the fan below
-    const fontPx = clampNum(15, 1.25 * vw / 100, 22);
-    const capW = short ? Math.min(320, 40 * vw / 100) : (tier === 'mobile' ? 38 * vw / 100 : Math.min(320, 27 * vw / 100));
-    // Sentence bubbles must fit side by side on the PAINTED hole rows: cap
-    // them just under the tightest painted same-row gap so a whole row of
-    // animals can stand on the painted holes without their bubbles touching.
-    // (Word chips stay at capW — they fan instead when holes run out.)
-    let cap = capW;
-    if (!compact) {
-      const rowGap = (holes) => {
-        const xs = holes.map((h) => h.x).sort((a, b) => a - b);
-        let g = Infinity;
-        for (let i = 1; i < xs.length; i++) g = Math.min(g, xs[i] - xs[i - 1]);
-        return g;
-      };
-      const minGapPct = Math.min(rowGap(layout.top), rowGap(layout.bottom));
-      cap = Math.max(compact ? 64 : 92, Math.min(capW, (minGapPct / 100) * fw - 10));
-      // The RENDERED bubbles get the same cap (CSS custom property), so a
-      // painted row of animals never touches even after text wraps.
-      if (fanYard) fanYard.style.setProperty("--sentence-bubble-max", Math.round(cap) + "px");
-    }
-    // estimate each sentence's real rendered bubble width from its text
-    const estW = texts && texts.length
-      ? texts.map((t) => Math.max(compact ? 64 : 92, Math.min(cap, String(t).length * fontPx * 0.52 + (compact ? 18 : 26))))
-      : Array.from({ length: count }, () => cap);
-    const bubbleH = compact ? 46 : (short ? 58 : (tier === 'mobile' ? 78 : 78));
-    // Match the RENDERED CSS sizes (.mole width clamps) so collision checks
-    // never underestimate; word chips render smaller via .mole--word.
-    const moleW = compact
-      ? tier === 'desktop' && !short
-        ? clampNum(150, 9 * vw / 100, 190)
-        : tier === 'tablet'
-          ? clampNum(110, 15 * vw / 100, 150)
-          : clampNum(82, 24 * vw / 100, 118)
-      : short
-        ? clampNum(64, 15 * fh / 100, 110)
-        : tier === 'mobile'
-          ? clampNum(98, 30 * vw / 100, 138)
-          : tier === 'desktop'
-            ? clampNum(180, 12 * vw / 100, 240)
-            : clampNum(116, 14.5 * vw / 100, 200);
-    // Relaxed mode tolerates slight box overlap: stacked dogs in different
-    // holes read naturally and beat dropping an option (and with it possibly
-    // the engine's correct answer) on a tight field.
-    const pad = relaxTop ? moleW * 0.22 : 0;
-    const shrink = (b) => ({ l: b.l + pad, r: b.r - pad, t: b.t + pad, b: b.b - pad });
-    // measure the REAL instruction card so bubbles never cross into it.
-    // offsetTop/offsetHeight give the card's DOCKED layout position: the
-    // center-stage read beat flies the card with a transform, and a
-    // getBoundingClientRect taken mid-flight would read it low over the
-    // field and freeze the whole board out.
-    let topLimit = short ? 58 : 92;
-    const instr = document.querySelector('#instruction');
-    const field = document.querySelector('#whack');
-    if (instr && field && instr.offsetParent === field) {
+
+    // Docked instruction-card bottom in field px — bubbles must clear it.
+    // offsetTop/offsetHeight give the DOCKED layout position: the read beat
+    // flies the card with a transform, which must not affect the measure.
+    let topLimit = fh < 420 ? 58 : 92;
+    const instr = document.getElementById("instruction");
+    const fieldEl = document.getElementById("whack");
+    if (instr && fieldEl && instr.offsetParent === fieldEl) {
       const dockedBottom = instr.offsetTop + instr.offsetHeight;
-      topLimit = Math.max(topLimit, Math.min(dockedBottom + 8, fh * 0.55));
+      topLimit = Math.max(topLimit, Math.min(dockedBottom + 8, fh * 0.62));
     }
-    const bottomLimit = short ? 74 : (tier === 'mobile' ? 124 : 100); // feedback zone
-    const intersects = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
 
-    const boxesOf = (h, w) => {
-      const p = mapHole(h, tier, fw, fh);
-      if (p.x < 6 || p.x > 94) return null; // mapped hole off-frame under heavy crop
-      const x = p.x / 100 * fw;
-      const y = p.y / 100 * fh;
-      const moleTop = y - moleW * 1.04;
-      return {
-        hole: h,
-        pos: p, // field-space % — spawn code positions the mole from here
-        mole: { l: x - moleW / 2, t: moleTop, r: x + moleW / 2, b: y },
-        bubble: { l: x - w / 2, t: moleTop - 12 - bubbleH, r: x + w / 2, b: moleTop },
-      };
+    const baseMoleW = compact
+      ? (tier === "desktop" ? clampNum(118, 8.5 * vw / 100, 165)
+        : tier === "tablet" ? clampNum(96, 12.5 * vw / 100, 138)
+          : clampNum(80, 21 * vw / 100, 108))
+      : (tier === "desktop" ? clampNum(168, 11.5 * vw / 100, 220)
+        : tier === "tablet" ? clampNum(126, 13.5 * vw / 100, 175)
+          : clampNum(94, 27 * vw / 100, 124));
+    const fontPx = compact
+      ? clampNum(13, 3.4 * vw / 100, 17)
+      : clampNum(13.5, 1.3 * vw / 100, 21);
+
+    // Widest bubble neighbouring painted holes can host side by side —
+    // measured WITHIN a row (holes in different rows share x columns, and
+    // their cross-row gap must not cap same-row bubbles).
+    const rowGap = (row) => {
+      const xs = holes.filter((h) => h.row === row).map((h) => h.cx).sort((a, b) => a - b);
+      let g = Infinity;
+      for (let i = 1; i < xs.length; i++) g = Math.min(g, xs[i] - xs[i - 1]);
+      return g;
     };
+    const minGap = Math.min(rowGap("bottom"), rowGap("top"));
+    const capW = Math.min(compact ? 220 : 320,
+      Math.max(compact ? 70 : 96, (isFinite(minGap) ? minGap : fw * 0.4) - 12));
+    // text -> estimated bubble box at a given font size. Tracks the RENDERED
+    // bubble: 26px horizontal padding, 18px vertical padding + borders, and
+    // line wrapping measured against the content width (6px safety).
+    const estBubbleFor = (font) => (t) => {
+      const textPx = String(t).length * font * 0.52;
+      const w = Math.max(compact ? 64 : 84, Math.min(capW, textPx + 26));
+      const lines = Math.max(1, Math.ceil(textPx / Math.max(22, w - 32)));
+      const h = lines * font * 1.34 + 22;
+      return { w, h };
+    };
+    const textList = texts && texts.length ? texts : Array.from({ length: opts.count || 1 }, () => "");
+    const widestTextFirst = (function () {
+      // Sort ONCE by the biggest font's estimate so the widest texts claim
+      // holes first; per-scale sizes are re-derived inside the ladder.
+      const est = estBubbleFor(fontPx);
+      return textList.map((t, i) => ({ t, i, w: est(t).w })).sort((a, b) => b.w - a.w);
+    })();
 
-    const widths = estW.slice().sort((a, b) => b - a); // place widest first
-    // Most complete spread across all attempts. An incomplete greedy pass must
-    // NEVER return early: option waves require every target placed (dropping
-    // one by position could drop the engine's correct answer).
-    let best = null;
-    const remember = (cands) => { if (cands.length && (!best || cands.length > best.length)) best = cands; };
+    const maxMoleW = holes[0].w * 1.06; // never wider than the painted opening
+    const scales = compact ? [1, 0.9, 0.8, 0.7, 0.62, 0.55] : [1, 0.9, 0.82, 0.74, 0.66];
+    const intersects = (a, b) => a.l < b.r - 1 && a.r > b.l + 1 && a.t < b.b - 1 && a.b > b.t + 1;
+
+    let bestPartial = null;
+    const remember = (cands) => {
+      if (cands.length && (!bestPartial || cands.length > bestPartial.length)) bestPartial = cands;
+    };
     const commit = (cands) => {
-      ctx.lastWaveSig = cands.map((c) => c.hole.x + '/' + c.hole.y).sort().join('|');
+      ctx.lastWaveSig = cands.map((c) => c.hole.x + "/" + c.hole.y).sort().join("|");
       ctx.lastHoleKey = cands[0].hole;
       return cands;
     };
-    for (let attempt = 0; attempt < 16; attempt++) {
-      // Phones: the artwork's two bottom holes make the classic side-by-side
-      // pair (like the reference) — always try that row first. Hole-pattern
-      // variety is not needed there: the sentences shuffle every wave.
-      const pool = tier === "mobile"
-        ? layout.bottom
-        : layout.top.concat(layout.bottom);
-      const order = shuffleList(pool);
-      const chosen = [];
-      for (let h of order) {
-        if (chosen.length >= count) break;
-        const w = widths[chosen.length];
-        const cand = boxesOf(h, w);
-        if (!cand) continue;
-        // Normal mode: the whole bubble clears the instruction. Relaxed mode:
-        // only the mascot body must clear it — the bubble may overlap.
-        if (relaxTop ? cand.mole.t < topLimit : cand.bubble.t < topLimit) continue;
-        // Mole must stay inside the field; a tall bottom margin is not needed
-        // because every mole ducks into its hole before feedback appears.
-        if (cand.mole.b > fh - (short ? 26 : 44)) continue;
-        let ok = true;
-        for (const c of chosen) {
-          const a = relaxTop ? { mole: shrink(cand.mole), bubble: shrink(cand.bubble) } : cand;
-          const b = relaxTop ? { mole: shrink(c.mole), bubble: shrink(c.bubble) } : c;
-          if (intersects(a.bubble, b.bubble) || intersects(a.mole, b.mole) ||
-              intersects(a.bubble, b.mole) || intersects(a.mole, b.bubble)) { ok = false; break; }
+
+    for (const scale of scales) {
+      const moleW = Math.min(baseMoleW * scale, maxMoleW);
+      const clipH = moleW * 1.04;
+      const gap = compact ? 6 : 12;
+      // The WHOLE stack shrinks with the ladder — mascot and bubble together —
+      // otherwise a full-height bubble keeps colliding with the dog in the
+      // hole above. Fonts stop at a readability floor.
+      const font = Math.max(compact ? 12 : 12.5, fontPx * Math.max(0.85, scale));
+      const est = estBubbleFor(font);
+      const bubbles = widestTextFirst.map((e) => est(e.t));
+      const mkBoxes = (hole, bubble) => {
+        const sink = hole.h * HOLE_SINK;
+        const footY = hole.cy + sink;           // feet sunk under the rim line
+        const moleTop = footY - clipH;
+        const mole = { l: hole.cx - moleW / 2, t: moleTop, r: hole.cx + moleW / 2, b: footY };
+        if (mole.b > fh - 6 || mole.t < 4) return null;
+        const modes = [];
+        // 1) bubble straight above the animal (always the first choice)
+        const above = { l: hole.cx - bubble.w / 2, t: moleTop - gap - bubble.h,
+          r: hole.cx + bubble.w / 2, b: moleTop - gap };
+        if (above.l >= 2 && above.r <= fw - 2 &&
+            above.t >= (relaxTop ? topLimit - bubble.h * 0.45 : topLimit)) {
+          modes.push({ box: above, mode: "above" });
         }
-        if (ok) chosen.push(cand);
+        if (compact) {
+          // 2) word chips may hang at muzzle height beside the animal when
+          // the space above is taken (stacked phone rows). Outboard first,
+          // then inboard, always fully inside the field.
+          const yT = moleTop + clipH * 0.16;
+          const side = (dir) => {
+            const l = dir < 0 ? hole.cx - moleW / 2 - 6 - bubble.w : hole.cx + moleW / 2 + 6;
+            return { l, t: yT, r: l + bubble.w, b: yT + bubble.h };
+          };
+          for (const dir of [hole.cx < fw / 2 ? -1 : 1, hole.cx < fw / 2 ? 1 : -1]) {
+            const box = side(dir);
+            if (box.l >= 2 && box.r <= fw - 2 && box.b < fh - 4) {
+              modes.push({ box, mode: dir < 0 ? "side-l" : "side-r" });
+            }
+          }
+        }
+        if (!modes.length) return null;
+        return { hole, mole, modes, footY, moleW, clipH, bubble, font };
+      };
+
+      for (let attempt = 0; attempt < 12; attempt++) {
+        // Bottom painted row first (the classic look), top row as overflow.
+        const order = shuffleList(holes.filter((h) => h.row === "bottom"))
+          .concat(shuffleList(holes.filter((h) => h.row === "top")));
+        const chosen = [];
+        for (const hole of order) {
+          if (chosen.length >= bubbles.length) break;
+          const entry = widestTextFirst[chosen.length];
+          const cand = mkBoxes(hole, bubbles[chosen.length]);
+          if (!cand) continue;
+          let ok = false;
+          for (const m of cand.modes) {
+            ok = chosen.every((c) =>
+              !intersects(m.box, c.bubbleBox) && !intersects(m.box, c.mole) &&
+              !intersects(cand.mole, c.bubbleBox) && !intersects(cand.mole, c.mole));
+            if (ok) { cand.bubbleBox = m.box; cand.mode = m.mode; cand.textIndex = entry.i; break; }
+          }
+          if (ok) chosen.push(cand);
+        }
+        if (!chosen.length) continue;
+        if (chosen.length < bubbles.length) { remember(chosen); continue; }
+        const sig = chosen.map((c) => c.hole.x + "/" + c.hole.y).sort().join("|");
+        if (sig === ctx.lastWaveSig && attempt < 9) { remember(chosen); continue; }
+        return commit(chosen);
       }
-      if (!chosen.length) continue;
-      if (chosen.length < count) { remember(chosen); continue; }
-      const sig = chosen.map((c) => c.hole.x + '/' + c.hole.y).sort().join('|');
-      if (sig === ctx.lastWaveSig && attempt < 12) { remember(chosen); continue; }
-      if (sig === ctx.lastWaveSig && count > 3) {
-        // geometrically forced repeat: try one target fewer for a visibly
-        // different pattern — but never drop below the three-animal minimum
-        const smaller = chosen.slice(0, count - 1);
-        if (smaller.length) return commit(smaller);
-      }
-      return commit(chosen);
     }
-    // Word-option chips only: ALL options must stay selectable (dropping one
-    // by position could drop the engine's correct answer). When the painted
-    // holes cannot host them all, fan the chips across one ground line.
-    // SENTENCE waves never fan: every sentence animal must stand on a painted
-    // hole from the background artwork — when the holes cannot host three
-    // (the phone background paints four holes in a 2x2 grid), the wave uses
-    // as many painted holes as fit cleanly.
-    if (compact && count > 1 && (!best || best.length < count)) {
-      const anchor = boxesOf(layout.bottom[0] || layout.top[0], capW);
-      // Shared width budget: each bubble gets an equal slice of the field so
-      // fanned neighbours never touch. The rendered bubbles are capped to the
-      // same number through the --fan-bubble-max custom property.
-      const budget = Math.max(compact ? 64 : 92, Math.min(capW, (fw - 24) / count - 8));
-      // Push the ground line down until the whole stack (bubble + mascot)
-      // clears the instruction card, but never past the feedback zone.
-      const stack = 12 + bubbleH + moleW * 1.04;
-      const maxY = (fh - (short ? 26 : 44)) / fh * 100;
-      const minTopY = (topLimit + stack) / fh * 100;
-      const y = Math.max(anchor ? anchor.pos.y : 65, Math.min(minTopY, maxY));
-      const fan = [];
-      for (let i = 0; i < count; i++) {
-        const x = count === 1 ? 50 : 18 + 64 * i / (count - 1); // 18%..82% of the field
-        const w = budget;
-        const cx = x / 100 * fw;
-        const cy = y / 100 * fh;
-        const moleTop = cy - moleW * 1.04;
-        fan.push({
-          hole: { x, y, fan: true },
-          pos: { x, y },
-          mole: { l: cx - moleW / 2, t: moleTop, r: cx + moleW / 2, b: cy },
-          bubble: { l: cx - w / 2, t: moleTop - 12 - bubbleH, r: cx + w / 2, b: moleTop },
+    // opts.force — options may NEVER be dropped (the engine's correct answer
+    // is among them): park any unplaced option in a still-unused painted hole
+    // with a minimal chip, tolerating box overlap. Every animal still stands
+    // in a real hole; a tight board beats a missing answer.
+    if (opts && opts.force && holes.length) {
+      const font = compact ? 12 : 12.5;
+      const est = estBubbleFor(font);
+      const moleW = Math.min(baseMoleW * 0.55, maxMoleW);
+      const clipH = moleW * 1.04;
+      const used = new Set((bestPartial || []).map((c) => c.hole));
+      const out = (bestPartial || []).slice();
+      for (let k = out.length; k < textList.length; k++) {
+        const entry = widestTextFirst[k];
+        const hole = holes.find((h) => !used.has(h.hole)) || holes[k % holes.length];
+        used.add(hole.hole);
+        const bubble = est(entry.t);
+        const sink = hole.h * HOLE_SINK;
+        const footY = hole.cy + sink;
+        const moleTop = footY - clipH;
+        let mode = "above";
+        let bubbleBox = { l: hole.cx - bubble.w / 2, t: moleTop - 6, r: hole.cx + bubble.w / 2, b: moleTop };
+        if (compact) {
+          // A chip at head height on the inboard side usually clears the
+          // busier centre of the field better than another stacked bubble.
+          const yT = moleTop + clipH * 0.16;
+          for (const dir of [hole.cx < fw / 2 ? 1 : -1, hole.cx < fw / 2 ? -1 : 1]) {
+            const l = dir < 0 ? hole.cx - moleW / 2 - 6 - bubble.w : hole.cx + moleW / 2 + 6;
+            const box = { l, t: yT, r: l + bubble.w, b: yT + bubble.h };
+            if (box.l >= 2 && box.r <= fw - 2 && box.b < fh - 4) {
+              mode = dir < 0 ? "side-l" : "side-r";
+              bubbleBox = box;
+              break;
+            }
+          }
+        }
+        out.push({
+          hole,
+          textIndex: entry.i,
+          footY,
+          moleW, clipH, bubble, font,
+          mode,
+          mole: { l: hole.cx - moleW / 2, t: moleTop, r: hole.cx + moleW / 2, b: footY },
+          bubbleBox,
         });
       }
-      if (fanYard) {
-        fanYard.classList.add("yard--fan");
-        fanYard.style.setProperty("--fan-bubble-max", Math.round(budget) + "px");
-      }
-      ctx.lastWaveSig = "fan" + count;
-      ctx.lastHoleKey = fan[0].hole;
-      return fan;
+      return commit(out);
     }
-    if (best) return commit(best);
-    // Last resort: bottom painted row first, then the top row — and ONLY
-    // holes whose bubbles clear the instruction card. The previous version
-    // blindly used the top row, which parked the answer bubbles BEHIND the
-    // opaque card on phones (animals visible, answers invisible). Fewer
-    // placed targets are handled by spawnWave()'s trim — never hidden text.
-    const fallback = layout.bottom.concat(layout.top)
-      .map((h, i) => boxesOf(h, widths[i % widths.length] || cap))
-      .filter((b) => b && (relaxTop || b.bubble.t >= topLimit))
-      .slice(0, count);
-    if (!fallback.length) return commit(best || []);
-    ctx.lastWaveSig = fallback.map((c) => c.hole.x + '/' + c.hole.y).sort().join('|');
-    ctx.lastHoleKey = fallback[0].hole;
-    return fallback;
+    if (bestPartial) return commit(bestPartial);
+    return [];
   }
 
   function clampNum(min, v, max) { return Math.min(max, Math.max(min, v)); }
 
   function spawnWave(yard, tier, wave, isFallbackSingle) {
-    const fw = yard.clientWidth || 1;
-    const fh = yard.clientHeight || 1;
-    let boxes = pickWaveHoles(tier, wave.length, fw, fh, wave.map((w) => w.text));
+    const box = fieldBox();
+    if (!box) return; // field not laid out yet — beginPlay retries, never guess
+    let boxes = layoutWave(tier, box.w, box.h, wave.map((w) => w.text), { count: wave.length });
     let usable = wave;
     if (boxes.length < wave.length) {
       // Never stack two targets in one hole; when the field can only host
       // fewer targets, keep the instruction-satisfying one and fill the rest.
       usable = trimWaveTo(wave, boxes.length);
-      boxes = pickWaveHoles(tier, usable.length, fw, fh, usable.map((w) => w.text));
-      if (boxes.length < usable.length) usable = trimWaveTo(wave, boxes.length);
+      boxes = layoutWave(tier, box.w, box.h, usable.map((w) => w.text), { count: usable.length });
+      // Still short: the layout's own placements decide what spawns — every
+      // box already references its item through textIndex, extras never show.
     }
     if (!boxes.length) return; // degenerate field box: skip the wave, never crash
-    usable = usable.slice(0, boxes.length);
-    usable.forEach((item, i) => {
-      const box = boxes[i];
-      const mole = makeMole(box.pos, {
+    boxes.forEach((b, i) => {
+      const item = usable[b.textIndex !== undefined ? b.textIndex : i] || usable[i];
+      if (!item) return;
+      const mole = makeMole({ x: b.hole.cx / box.w * 100, y: b.footY / box.h * 100 }, {
         bubble: item.text,
         index: i,
         label: item.text,
         delay: i * 70,
+        size: { moleW: b.moleW, clipH: b.clipH, bubbleW: b.bubble.w, fontPx: b.font, mode: b.mode },
         onTap: () => submitClaim(item.claim !== undefined ? item.claim : item.text, mole),
       });
       ctx.moleIndex = (ctx.moleIndex + 1) % NEUTRAL_KEYS.length;
@@ -1798,36 +1888,37 @@
     return shuffleList(keep.concat(rest));
   }
 
-  // Option questions: one mascot per option, popping from the widest-spaced
-  // row of the current artwork's holes. Unused painted holes stay empty.
-  // EVERY option is always spawned: the engine guarantees its correctAnswer
-  // is among the options, so dropping one by position could hide the correct
-  // target — word chips use compact estimates, and if the field still cannot
-  // host them collision-free, placement relaxes the instruction safe-zone
-  // rather than dropping an option.
+  // Option questions: one mascot per option, each on a painted hole. Unused
+  // painted holes stay empty. EVERY option is always spawned: the engine
+  // guarantees its correctAnswer is among the options, so dropping one by
+  // position could hide the correct target — the layout ladder shrinks the
+  // mascots and hangs chips beside animals before ever giving up.
   function spawnOptionMoles(yard, tier, q) {
     const options = Array.isArray(q.options) ? q.options : [];
-    const fw = yard.clientWidth || 1;
-    const fh = yard.clientHeight || 1;
-    let boxes = pickWaveHoles(tier, options.length, fw, fh, options.map(String), { compact: true });
+    const box = fieldBox();
+    if (!box) return;
+    let boxes = layoutWave(tier, box.w, box.h, options.map(String), { compact: true, count: options.length });
     if (boxes.length < options.length) {
-      boxes = pickWaveHoles(tier, options.length, fw, fh, options.map(String), { compact: true, relaxTop: true });
+      boxes = layoutWave(tier, box.w, box.h, options.map(String), { compact: true, count: options.length, relaxTop: true });
     }
-    const usable = Math.min(options.length, boxes.length);
-    for (let i = 0; i < usable; i++) {
-      const box = boxes[i];
-      const option = options[i];
-      const mole = makeMole(box.pos, {
+    if (boxes.length < options.length) {
+      boxes = layoutWave(tier, box.w, box.h, options.map(String), { compact: true, count: options.length, force: true });
+    }
+    boxes.forEach((b, i) => {
+      const option = options[b.textIndex !== undefined ? b.textIndex : i];
+      if (option === undefined) return;
+      const mole = makeMole({ x: b.hole.cx / box.w * 100, y: b.footY / box.h * 100 }, {
         bubble: String(option),
         index: i,
         label: 'Answer: ' + option,
         delay: i * 70,
         word: true,
+        size: { moleW: b.moleW, clipH: b.clipH, bubbleW: b.bubble.w, fontPx: b.font, mode: b.mode },
         onTap: () => submitClaim(option, mole),
       });
       ctx.activeMoles.push({ el: mole, text: String(option) });
       yard.appendChild(mole);
-    }
+    });
   }
 
   function makeMole(pos, options) {
@@ -1840,18 +1931,27 @@
     // use-default-cursor: when speech is available, hovering the WHOLE text
     // area (not just the little badge) swaps the hammer for the native
     // pointer — the badge click hears, the text click still whacks.
-    const bubble = el("span", {
-      class: "mole__bubble" + (Speech.supported && options.bubble ? " use-default-cursor" : ""),
-      style: "animation-delay:" + (140 + delay) + "ms",
-    });
+    const size = options.size || {};
+    const bubbleClass = "mole__bubble" +
+      (Speech.supported && options.bubble ? " use-default-cursor" : "") +
+      (size.mode === "side-l" ? " mole__bubble--side-l" : "") +
+      (size.mode === "side-r" ? " mole__bubble--side-r" : "");
+    const bubbleStyle = "animation-delay:" + (140 + delay) + "ms" +
+      (size.bubbleW ? ";max-width:" + Math.round(size.bubbleW) + "px;min-width:" + Math.round(Math.min(size.bubbleW, 64)) + "px" : "") +
+      (size.fontPx ? ";font-size:" + Math.round(size.fontPx * 10) / 10 + "px" : "");
+    const bubble = el("span", { class: bubbleClass, style: bubbleStyle });
     bubble.appendChild(document.createTextNode(options.bubble));
     if (Speech.supported && options.bubble) {
       bubble.appendChild(makeSpeakBadge(options.bubble, (140 + delay) + 60));
     }
+    const moleStyle = "left:" + pos.x + "%; bottom:" + (100 - pos.y) + "%" +
+      (size.moleW ? ";--mole-w:" + Math.round(size.moleW) + "px" : "") +
+      (size.clipH ? ";--mole-clip-h:" + Math.round(size.clipH) + "px" : "");
     const mole = el("button", {
       class: "mole" + (options.word ? " mole--word" : ""),
-      // bottom:(100-y)% pins the mascot's feet at the hole centre line
-      style: "left:" + pos.x + "%; bottom:" + (100 - pos.y) + "%",
+      // bottom:(100-y)% pins the mascot's feet inside the painted hole
+      // (y already includes the rim sink computed by the layout engine)
+      style: moleStyle,
       "aria-label": options.label,
     }, [
       el("span", { class: "mole__clip" }, [
@@ -1937,7 +2037,37 @@
     }
   }
 
-  /* ----------------------------- feedback ------------------------------ */
+  /* ----------------------------- feedback ------------------------------
+   * The verdict card is scheduled the moment the engine grades an answer and
+   * appears after the reveal beat. Scheduling is CANCELLABLE and IDENTITY-
+   * CHECKED: a card may only ever render for the question that produced it,
+   * and every transition that ends a question's life (next question, next
+   * challenge, abort, results) cancels any card still in flight. A late or
+   * throttled timer can therefore never paint a previous question's verdict
+   * over a fresh round. */
+  let feedbackCardTimer = null;
+
+  function scheduleFeedbackCard(feedback, delayMs) {
+    cancelFeedbackCard();
+    feedbackCardTimer = setTimeout(() => {
+      feedbackCardTimer = null;
+      // Still the same question in the same challenge, still unanswered by
+      // the UI, still on the game screen — otherwise the card stays hidden.
+      if (ctx.screen !== "game") return;
+      if (!ctx.question || !feedback || ctx.question.id !== feedback.questionId) return;
+      if (ctx.challengeId !== feedback.challengeId) return;
+      if (!ctx.questionLocked) return;
+      showFeedback(feedback);
+      HammerCursor.sync(); // card is up: back to a normal cursor for Next
+    }, delayMs);
+  }
+
+  function cancelFeedbackCard() {
+    if (feedbackCardTimer !== null) {
+      clearTimeout(feedbackCardTimer);
+      feedbackCardTimer = null;
+    }
+  }
 
   function showFeedback(feedback) {
     // ONE contained card, rebuilt from a clean state every time — no ghost
@@ -2408,12 +2538,9 @@
         // Both verdicts follow the same beat: the hit reaction lands first,
         // the card appears once the reveal settles, and it STAYS UP until
         // the learner taps Next — nothing auto-advances, so the result and
-        // the correct sentence stay readable as long as needed.
-        setTimeout(() => {
-          if (ctx.screen !== "game" || !ctx.questionLocked) return;
-          showFeedback(feedback);
-          HammerCursor.sync(); // card is up: back to a normal cursor for Next
-        }, REVEAL_DELAY.feedbackCard);
+        // the correct sentence stay readable as long as needed. The schedule
+        // is identity-checked and cancelled by the next question/challenge.
+        scheduleFeedbackCard(feedback, REVEAL_DELAY.feedbackCard);
         HammerCursor.sync(); // during the reveal the hammer stays the cursor
       });
     });
@@ -2513,16 +2640,21 @@
       // the last life waits longer so the wrong-answer reveal (green correct
       // target + correction card) can actually be read before the results.
       setTimeout(() => {
-        if (ctx.pendingResult === result && ctx.screen === "game") {
-          hideFeedback();
-          renderResults(result);
-        }
+        // Only this result may switch the screen, and only while the same
+        // challenge still owns it — a Restart/abort inside the window must
+        // never be yanked to a stale results screen.
+        if (ctx.pendingResult !== result || ctx.screen !== "game") return;
+        if (ctx.challengeId !== undefined && String(result.challengeId) !== String(ctx.challengeId)) return;
+        cancelFeedbackCard();
+        hideFeedback();
+        renderResults(result);
       }, result.reason === "no_lives"
         ? REVEAL_DELAY.failScreen
         : result.reason === "timeout" ? 700 : 1200);
     });
 
     engine.on(E.CHALLENGE_ABORTED, () => {
+      cancelFeedbackCard();
       closeAllModals();
       renderLevel();
     });
@@ -2832,8 +2964,9 @@
     const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
     const items = Object.values(PRAIRIE_DOG_ASSETS.neutral).map((src) => ({ src, weight: 2 }));
     items.push({ src: Assets.pick(FIELD_BG_URLS[fieldTier()]), weight: 8 });
-    // A portrait tablet swaps to the portrait artwork (.whack--tall) once
-    // rendered — warm it too so the first question never flashes.
+    // A portrait tablet renders with the portrait artwork once the field is
+    // measured (whack--art-mobile) — warm it too so the first question never
+    // flashes.
     if (fieldTier() === "tablet" && window.innerHeight > window.innerWidth) {
       items.push({ src: Assets.pick(FIELD_BG_URLS.mobile), weight: 8 });
     }
