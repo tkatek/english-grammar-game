@@ -2734,17 +2734,29 @@ body.reduce-motion .instruction { transition: none; }
 /* question card: inline chip under the missing-word sentence */
 .instruction__speak { margin-top: 5px; background: rgba(255, 255, 255, 0.16); }
 
-/* feedback card: light chip that matches the painted gold card */
+/* feedback card: the same pill, re-cut for the cream surface — dark navy
+ * copy on a light gold wash, and a rose outline in the wrong state so the
+ * "hear the right sentence" affordance is the only pink thing on the card. */
 .feedback-card__speak {
-  background: rgba(47, 43, 96, 0.1);
-  color: var(--brand-900, #2F2B60);
-  border-color: rgba(47, 43, 96, 0.35);
+  min-height: 40px;
+  padding: 6px 16px;
+  font-size: 0.86rem;
+  background: rgba(47, 43, 96, 0.07);
+  color: #2F2B60;
+  border-color: rgba(47, 43, 96, 0.28);
 }
-.feedback-card__speak:hover { background: rgba(47, 43, 96, 0.18); }
+.feedback-card__speak .icon { width: 18px; height: 18px; }
+.feedback-card__speak:hover { background: rgba(47, 43, 96, 0.16); }
 .feedback-card.is-wrong .feedback-card__speak {
-  color: var(--red-600, #C0392B);
-  border-color: rgba(192, 57, 43, 0.45);
+  color: #C22742;
+  border-color: rgba(208, 39, 66, 0.45);
+  background: rgba(208, 39, 66, 0.08);
 }
+.feedback-card.is-wrong .feedback-card__speak:hover { background: rgba(208, 39, 66, 0.16); }
+/* Speaking state: the shared .speech-btn rule already flips to the gold
+ * gradient, which reads correctly on cream too — only lift the shadow. */
+.feedback-card__speak.is-speaking { color: var(--brand-900, #2F2B60); }
+.feedback-card__speak:focus-visible { outline: 2px solid #2F2B60; outline-offset: 2px; }
 
 /* review items: light chip on the cream card */
 .review-item__speak {
@@ -3355,98 +3367,366 @@ body.reduce-motion .hammer-cursor.is-whacking .hammer-cursor__img {
 .gamebar__streak .icon { width: 15px; height: 15px; color: #FF9D45; }
 .gamebar__streak.bump { animation: score-bump 320ms ease; }
 
-/* ---- Feedback: ONE contained card inside the game field ---- */
-/* The answer card wears the uploaded ornate artwork: the rounded shape,
- * gold trim, top tab and corner ring are all painted in the image and the
- * area outside them is transparent — so the CSS adds no border of its own
- * and a drop-shadow follows the painted silhouette, not the box.
- * Asset: 49KB WebP, preloaded with the other game art. */
+/* ---- Feedback: the cream-and-gold VERDICT CARD --------------------------
+ * One panel over the bottom of the field, hidden (and space-free) until the
+ * engine grades an answer. Three zones in a single row on desktop:
+ *   status (badge + verdict word) | gold divider | explanation | Next.
+ * Everything decorative — the crest on the top edge and the four corner
+ * flourishes — is pure CSS, so the whole panel costs no image request. */
 .feedback-card {
+  /* Local palette for this light surface (the cream cards elsewhere in the
+   * game hard-code the same family rather than reusing the dark-screen
+   * tokens, which are tuned for a purple backdrop). */
+  --fc-cream-top: #FFFDF4;
+  --fc-cream-mid: #FBF2D8;
+  --fc-cream-end: #F6E7BE;
+  --fc-gold: #DCAB3C;
+  --fc-gold-deep: #B9820A;
+  --fc-ink: #2F2B60;       /* dark navy body text on cream */
+  --fc-ink-soft: #6A6590;  /* rule / secondary copy */
+  --fc-good: #1B7F3F;      /* deep green — AA on cream at body size */
+  --fc-bad: #D02742;       /* deep crimson — AA on cream at body size */
+
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  bottom: 16px;
+  bottom: 18px;
   z-index: 9;
-  width: min(560px, calc(100% - 32px));
+  box-sizing: border-box;
+  /* Inset by the safe-area on notched phones so the panel never runs under
+   * a rounded corner or a home indicator. Capped wide enough that a normal
+   * sentence clears the fixed zones and stays on ONE line, like the design
+   * reference — longer sentences simply wrap and the card grows. */
+  width: min(960px, calc(100% - 32px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: url("../assets/images/feedback-card.webp") center / 100% 100% no-repeat;
-  border: none;
-  border-radius: 30px; /* clip hits stay inside the painted pill shape */
-  padding: 16px 30px 16px 32px; /* keep content inside the painted gold frame */
-  filter: drop-shadow(0 10px 24px rgba(15, 9, 44, 0.45));
-  animation: feedback-in 180ms ease both;
+  gap: 18px;
+  padding: 20px 26px;
+  color: var(--fc-ink);
+  border: 2px solid rgba(220, 171, 60, 0.9);
+  border-radius: 26px;
+  background:
+    radial-gradient(130% 150% at 50% 0%, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(180deg, var(--fc-cream-top) 0%, var(--fc-cream-mid) 58%, var(--fc-cream-end) 100%);
+  box-shadow:
+    0 16px 36px rgba(15, 9, 44, 0.42),      /* warm drop onto the field */
+    0 3px 0 rgba(255, 255, 255, 0.7) inset, /* lit top edge of the cream */
+    0 0 0 4px rgba(255, 197, 49, 0.16);     /* soft gold halo */
+  animation: feedback-in 260ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
 }
 
 @keyframes feedback-in {
-  from { opacity: 0; transform: translateX(-50%) scale(0.95); }
-  to   { opacity: 1; transform: translateX(-50%) scale(1); }
+  from { opacity: 0; transform: translateX(-50%) translateY(22px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
 
-.feedback-card__head {
+/* Gold crest straddling the top edge: a fading hairline with a diamond on
+ * the centre. Decorative only — pointer events stay off so it can never
+ * swallow a tap meant for the card. */
+.feedback-card__crest {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  width: 148px;
+  height: 22px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background:
+    linear-gradient(to right,
+      rgba(220, 171, 60, 0) 0%,
+      var(--fc-gold) 26%,
+      var(--fc-gold) 74%,
+      rgba(220, 171, 60, 0) 100%) center 11px / 100% 2px no-repeat;
+}
+
+.feedback-card__crest::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border-radius: 6px;
+  background: linear-gradient(135deg, #FFF3CC 0%, #FFC531 46%, #DF9A10 100%);
+  box-shadow:
+    0 2px 7px rgba(94, 58, 4, 0.45),
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.75);
+}
+
+/* Corner flourishes: a thin gold L-bracket with a diamond on its vertex,
+ * tucked inside each corner. One shape, positioned per corner and rotated —
+ * rotation about the box centre is an isometry, so it turns the L to face
+ * the right corner AND keeps the diamond exactly on the vertex. */
+.feedback-card__corner {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  pointer-events: none;
+  background:
+    linear-gradient(to right, var(--fc-gold-deep), rgba(220, 171, 60, 0)) left top / 100% 2.5px no-repeat,
+    linear-gradient(to bottom, var(--fc-gold-deep), rgba(220, 171, 60, 0)) left top / 2.5px 100% no-repeat;
+}
+
+.feedback-card__corner::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, #FFE9A8 0%, var(--fc-gold) 100%);
+  box-shadow:
+    0 0 0 2px rgba(255, 253, 244, 0.92), /* cream halo: reads clear of the bracket */
+    0 1px 4px rgba(120, 76, 8, 0.4);
+}
+
+.feedback-card__corner--tl { top: 9px; left: 9px; }
+.feedback-card__corner--tr { top: 9px; right: 9px; transform: rotate(90deg); }
+.feedback-card__corner--br { right: 9px; bottom: 9px; transform: rotate(180deg); }
+.feedback-card__corner--bl { bottom: 9px; left: 9px; transform: rotate(270deg); }
+
+/* --- Zone 1 · verdict ------------------------------------------------- */
+.feedback-card__status {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 14px;
 }
 
-.feedback-card__icon { width: 24px; height: 24px; flex-shrink: 0; }
-.feedback-card.is-correct .feedback-card__icon { color: var(--green-600); }
-.feedback-card.is-wrong .feedback-card__icon { color: var(--red-500); }
+.feedback-card__badge {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: #fff;
+  box-shadow:
+    0 6px 14px rgba(94, 20, 34, 0.32),
+    inset 0 0 0 3px rgba(255, 255, 255, 0.55),
+    inset 0 -4px 9px rgba(0, 0, 0, 0.16);
+}
 
-.feedback-card__title { font-size: 1rem; font-weight: 800; color: var(--green-600); white-space: nowrap; }
-.feedback-card.is-wrong .feedback-card__title { color: var(--red-600); }
+.feedback-card.is-wrong .feedback-card__badge { background: var(--grad-danger); }
+.feedback-card.is-correct .feedback-card__badge { background: var(--grad-green); }
+
+.feedback-card__mark { width: 34px; height: 34px; }
+
+.feedback-card__title {
+  font-size: clamp(1.3rem, 2.6vw, 1.8rem);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  color: var(--fc-good);
+}
+
+.feedback-card.is-wrong .feedback-card__title { color: var(--fc-bad); }
+
+/* Thin gold rule between the verdict and the explanation, with a diamond
+ * riding its middle. Hidden once the card stacks (the zones get their own
+ * rows there and the rule would just float). */
+.feedback-card__divider {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 2px;
+  margin-block: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to bottom,
+    rgba(220, 171, 60, 0) 0%,
+    rgba(220, 171, 60, 0.85) 22%,
+    rgba(220, 171, 60, 0.85) 78%,
+    rgba(220, 171, 60, 0) 100%);
+  position: relative;
+}
+
+.feedback-card__divider::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border-radius: 2px;
+  background: var(--fc-gold);
+  box-shadow: 0 0 0 2px var(--fc-cream-mid), 0 0 7px rgba(240, 168, 28, 0.6);
+}
+
+/* --- Zone 2 · explanation -------------------------------------------- */
+.feedback-card__detail {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
 
 .feedback-card__body {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  line-height: 1.3;
+  gap: 4px;
+  line-height: 1.32;
 }
 
-.feedback-card__line { font-size: 0.88rem; color: #3A4666; overflow-wrap: anywhere; }
-.feedback-card__line--ok { font-weight: 700; color: var(--green-600); }
-.feedback-card__line--rule { color: #5A6B94; }
+.feedback-card__line {
+  font-size: clamp(0.95rem, 2vw, 1.06rem);
+  color: var(--fc-ink);
+  overflow-wrap: break-word; /* long sentences wrap, never spill sideways */
+}
 
+.feedback-card__line--answer { font-weight: 800; }
+
+.feedback-card__label {
+  font-weight: 900;
+  color: var(--fc-good); /* "Correct:" stays green in BOTH states */
+}
+
+.feedback-card__line--rule {
+  font-size: clamp(0.84rem, 1.8vw, 0.96rem);
+  font-weight: 600;
+  color: var(--fc-ink-soft);
+}
+
+.feedback-card__line--rule .feedback-card__label {
+  font-weight: 800;
+  color: var(--fc-ink);
+}
+
+/* Correct answers stay lighter than a correction: one calm confirmation
+ * line, no rule, no label. */
+.feedback-card__line--note {
+  font-weight: 600;
+  color: var(--fc-ink-soft);
+}
+
+/* --- Zone 3 · next action -------------------------------------------- */
 .feedback-card__next {
-  flex-shrink: 0;
-  min-width: 86px;
-  height: 44px;
-  padding: 0 18px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 54px;
+  min-width: 132px;
+  padding: 0 26px;
+  border: 2px solid rgba(160, 104, 6, 0.45);
   border-radius: var(--radius-pill);
   background: var(--grad-gold);
   color: var(--brand-900);
-  font-weight: 800;
-  font-size: 0.92rem;
-  box-shadow: 0 4px 12px rgba(240, 168, 28, 0.4);
+  font-family: inherit;
+  font-size: 1.06rem;
+  font-weight: 900;
+  /* Chunky gold "puck" with a solid bottom lip: the lip is what sells the
+   * press, so the :active state slides the button down into it. */
+  box-shadow:
+    0 6px 0 #D18F0C,
+    0 12px 20px rgba(240, 168, 28, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 160ms ease;
 }
 
-.feedback-card__next:active { transform: translateY(1px) scale(0.97); }
+.feedback-card__next-arrow {
+  width: 18px;
+  height: 18px;
+  transition: transform 160ms ease;
+}
 
+.feedback-card__next:focus-visible {
+  outline: 3px solid var(--fc-ink);
+  outline-offset: 3px;
+}
+
+.feedback-card__next:active {
+  transform: translateY(5px);
+  box-shadow:
+    0 1px 0 #D18F0C,
+    0 4px 10px rgba(240, 168, 28, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .feedback-card__next:hover {
+    filter: brightness(1.06);
+    transform: translateY(-1px);
+    box-shadow:
+      0 7px 0 #D18F0C,
+      0 16px 24px rgba(240, 168, 28, 0.48),
+      inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  }
+  .feedback-card__next:hover .feedback-card__next-arrow { transform: translateX(4px); }
+}
+
+/* --- Phones & portrait tablets ----------------------------------------
+ * Too narrow for one row: the zones stack in reading order — verdict on
+ * top, the sentence and rule under it, and a full-width Next as the last
+ * row (the biggest, easiest thumb target in the card). Nothing overlaps
+ * and nothing overflows: every zone claims a full row and the card simply
+ * grows taller as the explanation wraps. */
+@media (max-width: 700px) {
+  .feedback-card {
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    width: calc(100% - 20px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 18px;
+    border-radius: 22px;
+  }
+
+  .feedback-card__divider { display: none; }
+  .feedback-card__status { flex: 1 1 100%; }
+  .feedback-card__detail {
+    flex: 1 1 100%;
+    flex-wrap: wrap;   /* Listen drops below the text only if the row is tight */
+    gap: 10px 12px;
+  }
+  .feedback-card__speak { align-self: flex-start; }
+  .feedback-card__body { flex: 1 1 200px; }
+  .feedback-card__next { flex: 1 1 100%; min-height: 56px; font-size: 1.12rem; }
+  .feedback-card__corner { width: 20px; height: 20px; }
+  .feedback-card__crest { width: 104px; }
+}
+
+/* Landscape phones / short windows: the single row survives, so everything
+ * tightens instead of stacking — flourishes are the first thing to go. */
+@media (max-height: 480px) {
+  .feedback-card {
+    bottom: 8px;
+    gap: 12px;
+    padding: 10px 18px;
+    border-radius: 18px;
+  }
+  .feedback-card__corner,
+  .feedback-card__crest { display: none; }
+  .feedback-card__badge { width: 42px; height: 42px; }
+  .feedback-card__mark { width: 24px; height: 24px; }
+  .feedback-card__title { font-size: 1.15rem; }
+  .feedback-card__next { min-height: 42px; min-width: 108px; padding: 0 18px; font-size: 0.95rem; }
+}
+
+/* Narrow phones: trim the chrome again so the verdict lines stay readable
+ * without the learner zooming. */
+@media (max-width: 380px) {
+  .feedback-card { padding: 14px 14px; gap: 10px; }
+  .feedback-card__badge { width: 48px; height: 48px; }
+  .feedback-card__mark { width: 28px; height: 28px; }
+  .feedback-card__status { gap: 10px; }
+}
+
+/* Home mascot sizing for the same phones (unrelated to the verdict card —
+ * kept at its original 560px breakpoint). */
 @media (max-width: 560px) {
   .home__mascot-glow { display: none; }
   .home__mascot-ring { width: 106%; }
-  .feedback-card {
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    width: calc(100% - 24px);
-    flex-wrap: wrap;
-    gap: 6px 10px;
-    padding: 14px 22px 14px 24px;
-  }
-  .feedback-card__body { flex-basis: 100%; order: 2; }
-  .feedback-card__next { order: 3; margin-left: auto; }
-  .feedback-card__head { order: 1; }
-  .feedback-card__title { font-size: 0.95rem; }
-  .feedback-card__line { font-size: 0.82rem; }
 }
 
-@media (max-height: 480px) {
-  .feedback-card { bottom: 8px; padding: 6px 10px; gap: 8px; }
-  .feedback-card__next { height: 38px; }
-}
 
 /* ------------------------------ 11. Results ---------------------------- */
 .screen--results {

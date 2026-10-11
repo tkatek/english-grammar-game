@@ -180,6 +180,39 @@
     return a === b;
   }
 
+  /* ------------------------------------------------------------------------
+   * Phone option subsets (maximum two choices)
+   * ---------------------------------------------------------------------
+   * The tall phone painting can only host two animals side by side, so the
+   * board never fields more than that: every option question offers the
+   * correct answer plus ONE decoy instead of all four. The subset is built
+   * ONCE per session, with the same tolerant comparison the grader uses, then
+   * shuffled — so the renderer can field exactly two animals without ever
+   * learning which one is right (it is just a list of strings), and nothing
+   * about the educational objective changes: the engine's correctAnswer,
+   * explanation, audio and scoring are untouched, the other decoys are simply
+   * never offered. Difficulty still ramps through the grammar of the options
+   * and the time limit, never through how many choices fit on screen.
+   * --------------------------------------------------------------------- */
+  function buildMobileOptions(question, seedIndex) {
+    const options = Array.isArray(question.options) ? question.options.map(String) : null;
+    if (!options || options.length < 2) return null;
+    const expected = typeof question.correctAnswer === "string" ? question.correctAnswer : "";
+    if (!expected.trim()) return null;
+    const caseSensitive = question.caseSensitive === true;
+    const isRight = (opt) => answersMatch(expected, opt, caseSensitive);
+    const correctOption = options.find(isRight);
+    if (correctOption === undefined) return null; // nothing gradable on the field
+    const wrong = options.filter((opt) => !isRight(opt));
+    if (!wrong.length) return null;
+    // Rotate the decoy window by the question's slot so consecutive questions
+    // do not keep offering the same wrong option; the shuffle below then keeps
+    // the correct answer from always landing on the same side.
+    const start = wrong.length > 1 ? seedIndex % wrong.length : 0;
+    const decoy = wrong.slice(start).concat(wrong.slice(0, start))[0];
+    return shuffle([correctOption, decoy]);
+  }
+
   function toBooleanAnswer(value) {
     if (typeof value === "boolean") return value;
     if (typeof value === "number") {
@@ -921,8 +954,11 @@
       } else {
         pool = orderedCandidates.slice(0, playCount);
       }
-      pool.forEach((q) => {
+      pool.forEach((q, i) => {
         if (Array.isArray(q.options)) q.options = shuffle(q.options);
+        // Phones field at most two choices; the decoy is picked from the
+        // already-shuffled options so its position is random every session.
+        q.mobileOptions = buildMobileOptions(q, i);
       });
 
       // Persist the rolling queue at start so Restart also produces a fresh
@@ -1177,6 +1213,9 @@
       };
       if (question.text !== undefined && question.text !== null) payload.text = question.text;
       if (Array.isArray(question.options)) payload.options = question.options.slice();
+      // The phone-sized two-choice subset. Plain strings in random order —
+      // which one grades correct is still the engine's business alone.
+      if (Array.isArray(question.mobileOptions)) payload.mobileOptions = question.mobileOptions.slice();
       return payload; // correctAnswer / isCorrect intentionally omitted
     }
 

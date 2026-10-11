@@ -1708,16 +1708,22 @@
       topLimit = Math.max(topLimit, Math.min(dockedBottom + 8, fh * 0.62));
     }
 
-    const baseMoleW = compact
+    // The phone painting always fields a PAIR (the max-two rule), so half the
+  // field is free per animal: scale the pair up to big, thumb-friendly targets
+  // instead of leaving the board looking sparse. Phone-only, so desktop and
+  // tablet layouts are untouched.
+  const roomy = tier === "mobile" && (opts.count || 0) <= 2;
+  const roomyK = roomy ? 1.16 : 1;
+  const baseMoleW = (compact
       ? (tier === "desktop" ? clampNum(118, 8.5 * vw / 100, 165)
         : tier === "tablet" ? clampNum(96, 12.5 * vw / 100, 138)
           : clampNum(80, 21 * vw / 100, 108))
       : (tier === "desktop" ? clampNum(168, 11.5 * vw / 100, 220)
         : tier === "tablet" ? clampNum(126, 13.5 * vw / 100, 175)
-          : clampNum(94, 27 * vw / 100, 124));
-    const fontPx = compact
+          : clampNum(94, 27 * vw / 100, 124))) * roomyK;
+    const fontPx = (compact
       ? clampNum(13, 3.4 * vw / 100, 17)
-      : clampNum(13.5, 1.3 * vw / 100, 21);
+      : clampNum(13.5, 1.3 * vw / 100, 21)) * roomyK;
 
     // Widest bubble neighbouring painted holes can host side by side —
     // measured WITHIN each row. Capping by the tighter row would wrap every
@@ -1943,27 +1949,38 @@
     return shuffleList(keep.concat(rest));
   }
 
-  // Option questions: one mascot per option, each on a painted hole. Unused
+  // Option questions: one mascot per choice, each on a painted hole. Unused
   // painted holes stay empty. EVERY option is always spawned: the engine
   // guarantees its correctAnswer is among the options, so dropping one by
   // position could hide the correct target — the layout ladder shrinks the
   // mascots and hangs chips beside animals before ever giving up.
+  //
+  // On the phone painting the board never fields more than TWO animals, so a
+  // 3- or 4-option question uses the engine's pre-built two-choice subset
+  // (correct answer + one decoy, already shuffled per session — see
+  // buildMobileOptions in js/game.js). Nothing is hidden with CSS: the other
+  // decoys are simply never offered, which leaves grading, the explanation and
+  // the score exactly as they were.
   function spawnOptionMoles(yard, tier, q) {
-    const options = Array.isArray(q.options) ? q.options : [];
+    const phoneSubset = tier === "mobile" && Array.isArray(q.mobileOptions) && q.mobileOptions.length >= 2
+      ? q.mobileOptions
+      : null;
+    const options = (phoneSubset || q.options || []).map(String);
+    if (!options.length) return;
     const box = fieldBox();
     if (!box) return;
-    let boxes = layoutWave(tier, box.w, box.h, options.map(String), { compact: true, count: options.length });
+    let boxes = layoutWave(tier, box.w, box.h, options, { compact: true, count: options.length });
     if (boxes.length < options.length) {
-      boxes = layoutWave(tier, box.w, box.h, options.map(String), { compact: true, count: options.length, relaxTop: true });
+      boxes = layoutWave(tier, box.w, box.h, options, { compact: true, count: options.length, relaxTop: true });
     }
     if (boxes.length < options.length) {
-      boxes = layoutWave(tier, box.w, box.h, options.map(String), { compact: true, count: options.length, force: true });
+      boxes = layoutWave(tier, box.w, box.h, options, { compact: true, count: options.length, force: true });
     }
     boxes.forEach((b, i) => {
       const option = options[b.textIndex !== undefined ? b.textIndex : i];
       if (option === undefined) return;
       const mole = makeMole({ x: b.hole.cx / box.w * 100, y: b.footY / box.h * 100 }, {
-        bubble: String(option),
+        bubble: option,
         index: i,
         label: 'Answer: ' + option,
         delay: i * 70,
@@ -1971,7 +1988,7 @@
         size: { moleW: b.moleW, clipH: b.clipH, bubbleW: b.bubble.w, fontPx: b.font, mode: b.mode, chipTop: b.chipTop },
         onTap: () => submitClaim(option, mole),
       });
-      ctx.activeMoles.push({ el: mole, text: String(option) });
+      ctx.activeMoles.push({ el: mole, text: option });
       yard.appendChild(mole);
     });
   }
@@ -2131,27 +2148,30 @@
     const card = $("#feedback");
     card.classList.remove("is-correct", "is-wrong");
     $("#feedback-title").textContent = "";
-    $("#feedback-detail").textContent = "";
+    const detail = $("#feedback-detail");
+    clearNode(detail);
 
     card.classList.add(feedback.correct ? "is-correct" : "is-wrong");
-    $("#feedback-icon-use").setAttribute("href", feedback.correct ? "#i-check-circle" : "#i-x-circle");
+    $("#feedback-icon-use").setAttribute("href", feedback.correct ? "#i-check" : "#i-x");
     $("#feedback-title").textContent = feedback.correct ? "Correct!" : "Incorrect!";
 
-    const detail = $("#feedback-detail");
+    // Zone 2 fills itself: a wrong answer teaches (the fixed sentence + the
+    // rule under it), a right one just confirms — lighter and shorter, with
+    // no rule, which is what makes the two states feel like one system.
     if (!feedback.correct) {
-      detail.appendChild(el("div", {
-        class: "feedback-card__line feedback-card__line--ok",
-        text: "Correct: " + (feedback.correction || feedback.correctAnswer || ""),
-      }));
+      detail.appendChild(el("div", { class: "feedback-card__line feedback-card__line--answer" }, [
+        el("span", { class: "feedback-card__label", text: "Correct:" }),
+        el("span", { text: " " + (feedback.correction || feedback.correctAnswer || "") }),
+      ]));
       if (feedback.explanation) {
-        detail.appendChild(el("div", {
-          class: "feedback-card__line feedback-card__line--rule",
-          text: "Rule: " + feedback.explanation,
-        }));
+        detail.appendChild(el("div", { class: "feedback-card__line feedback-card__line--rule" }, [
+          el("span", { class: "feedback-card__label", text: "Rule:" }),
+          el("span", { text: " " + feedback.explanation }),
+        ]));
       }
     } else {
       detail.appendChild(el("div", {
-        class: "feedback-card__line",
+        class: "feedback-card__line feedback-card__line--note",
         text: feedback.correction || feedback.explanation || "Well done!",
       }));
     }
@@ -2159,7 +2179,7 @@
     // a complete sentence), then the bare answer, then the question text.
     ctx.feedbackSpeakText = feedback.correction || feedback.correctAnswer || feedback.text || "";
     setSpeechButton("#feedback-speak", ctx.feedbackSpeakText);
-    $("#feedback-continue").textContent = feedback.isFinalQuestion ? "Results" : "Next";
+    $("#feedback-next-label").textContent = feedback.isFinalQuestion ? "Results" : "Next";
     card.hidden = false;
     // The clock waits while the learner reads the verdict: silently pause the
     // engine for as long as the card is up (no pause menu). The flag is set
@@ -3022,9 +3042,9 @@
       items.push({ src: Assets.pick(FIELD_BG_URLS.mobile), weight: 8 });
     }
     if (finePointer) items.push({ src: HAMMER_URL, weight: 2 });
-    // The ornate answer-card skin shows on the very first answer — warm it
-    // with the essentials so it never pops in late.
-    items.push({ src: "assets/images/feedback-card.webp", weight: 3 });
+    // The verdict card is drawn entirely in CSS (cream face, gold border,
+    // crest and corners), so it needs no artwork preloaded — nothing pops in
+    // late on the very first answer.
     return items.filter((it) => !!it.src);
   }
 

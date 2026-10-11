@@ -11,12 +11,12 @@
   <!-- Asset versioning: bump ?v= whenever css/js changes so every browser
        (GitHub Pages caches HTML for ~10 min) drops its old copy and pulls
        the fixed build immediately. -->
-  <link rel="stylesheet" href="css/style.css?v=2026-10-11-4">
-  <script src="js/audio.js?v=2026-10-11-4" defer></script>
-  <script src="js/speech.js?v=2026-10-11-4" defer></script>
-  <script src="js/loader.js?v=2026-10-11-4" defer></script>
-  <script src="js/game.js?v=2026-10-11-4" defer></script>
-  <script src="js/ui.js?v=2026-10-11-4" defer></script>
+  <link rel="stylesheet" href="css/style.css?v=2026-10-11-5">
+  <script src="js/audio.js?v=2026-10-11-5" defer></script>
+  <script src="js/speech.js?v=2026-10-11-5" defer></script>
+  <script src="js/loader.js?v=2026-10-11-5" defer></script>
+  <script src="js/game.js?v=2026-10-11-5" defer></script>
+  <script src="js/ui.js?v=2026-10-11-5" defer></script>
 </head>
 <body>
   <!-- ============ SVG ICON SPRITE (Lucide-style, 24px grid) ============
@@ -401,18 +401,39 @@
           </button>
         </div>
 
+        <!-- Verdict panel. Three zones — status / explanation / next action —
+             plus the CSS-only gold crest and corner flourishes. It is `hidden`
+             (so it reserves no space) until showFeedback() paints a verdict,
+             and Next hides it again. ui.js fills #feedback-detail. -->
         <div class="feedback-card" id="feedback" role="status" hidden>
-          <div class="feedback-card__head">
-            <svg class="feedback-card__icon" id="feedback-icon" viewBox="0 0 24 24" aria-hidden="true"><use id="feedback-icon-use" href="#i-check-circle"/></svg>
+          <span class="feedback-card__crest" aria-hidden="true"></span>
+          <span class="feedback-card__corner feedback-card__corner--tl" aria-hidden="true"></span>
+          <span class="feedback-card__corner feedback-card__corner--tr" aria-hidden="true"></span>
+          <span class="feedback-card__corner feedback-card__corner--bl" aria-hidden="true"></span>
+          <span class="feedback-card__corner feedback-card__corner--br" aria-hidden="true"></span>
+
+          <div class="feedback-card__status">
+            <span class="feedback-card__badge">
+              <svg class="feedback-card__mark" viewBox="0 0 24 24" aria-hidden="true"><use id="feedback-icon-use" href="#i-check"/></svg>
+            </span>
             <strong class="feedback-card__title" id="feedback-title">Correct!</strong>
+          </div>
+
+          <span class="feedback-card__divider" aria-hidden="true"></span>
+
+          <div class="feedback-card__detail">
             <button type="button" class="speech-btn feedback-card__speak" id="feedback-speak" hidden
                     aria-label="Listen to the correct sentence">
               <svg class="icon" aria-hidden="true"><use href="#i-volume"/></svg>
               <span>Listen</span>
             </button>
+            <div class="feedback-card__body" id="feedback-detail"></div>
           </div>
-          <div class="feedback-card__body" id="feedback-detail"></div>
-          <button type="button" class="feedback-card__next" id="feedback-continue">Next</button>
+
+          <button type="button" class="feedback-card__next" id="feedback-continue">
+            <span id="feedback-next-label">Next</span>
+            <svg class="icon feedback-card__next-arrow" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+          </button>
         </div>
 
         <!-- Cinematic pause: the veil freezes, greys and blurs the SCENE only

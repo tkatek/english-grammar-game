@@ -328,6 +328,81 @@ function fakeLocalStorage() {
       JSON.stringify(q1.options.slice().sort()) === JSON.stringify(src.options.slice().sort()));
   });
 
+  await test("phone subset offers at most two choices and always keeps the correct answer", async () => {
+    // Level 1's Final Test mixes sentence questions with real 3- and 4-option
+    // questions, so this walks a live session end to end.
+    const engine = await engineReadyFor(3);
+    engine.startChallenge(1, 3);
+    let inspected = 0;
+    let maxChoices = 0;
+    let allSizedTwo = true;
+    let allSubsetOfOptions = true;
+    let allIncludeCorrect = true;
+    let allAccepted = true;
+    const decoysSeen = new Set();
+
+    let guard = 0;
+    while (engine.status === "playing" && guard++ < 12) {
+      const q = engine.getCurrentQuestion();
+      if (!q) break;
+      const src = srcQuestion(jsonData, 1, 3, q.id);
+      if (!src) break;
+      if (!Array.isArray(q.mobileOptions)) { // sentence question: no options at all
+        engine.submitAnswer(src.isCorrect);
+        if (engine.status !== "playing") break;
+        engine.nextQuestion();
+        continue;
+      }
+      const subset = q.mobileOptions;
+      inspected++;
+      maxChoices = Math.max(maxChoices, subset.length);
+      if (subset.length !== 2) allSizedTwo = false;
+      if (!subset.every((s) => q.options.includes(s))) allSubsetOfOptions = false;
+      const norm = (s) => String(s).trim().toLowerCase();
+      const hit = subset.find((s) => norm(s) === norm(src.correctAnswer));
+      if (!hit) allIncludeCorrect = false;
+      decoysSeen.add(subset.find((s) => s !== hit));
+      // A fielded option must always be accepted, grade correctly, and the
+      // reveal must still be the source question's own answer.
+      const result = engine.submitAnswer(hit || subset[0]);
+      if (!result.accepted || result.correct !== Boolean(hit)) allAccepted = false;
+      if (result.correctAnswer !== src.correctAnswer) allAccepted = false;
+      if (engine.status !== "playing") break;
+      engine.nextQuestion();
+    }
+
+    check("option questions were exercised", inspected >= 2, inspected);
+    check("every phone subset holds exactly two choices", allSizedTwo && maxChoices === 2, maxChoices);
+    check("subset entries all come from the real options", allSubsetOfOptions);
+    check("every subset contains the graded correct answer", allIncludeCorrect);
+    check("a fielded answer is always accepted and grades correctly", allAccepted);
+    check("the decoy is not frozen on one option", decoysSeen.size >= 2, decoysSeen.size);
+  });
+
+  await test("phone subset never leaks which option is correct", async () => {
+    const engine = await engineReadyFor(3);
+    engine.startChallenge(1, 3);
+    let q = engine.getCurrentQuestion();
+    let guard = 0;
+    while ((!q || !Array.isArray(q.mobileOptions)) && guard++ < 10 && engine.status === "playing") {
+      const src = srcQuestion(jsonData, 1, 3, q.id);
+      engine.submitAnswer(src.type === "correct_incorrect" ? src.isCorrect : src.correctAnswer);
+      if (engine.status !== "playing") break;
+      engine.nextQuestion();
+      q = engine.getCurrentQuestion();
+    }
+    check("a subset question is live", !!q && Array.isArray(q.mobileOptions), q && q.id);
+    if (!q || !q.mobileOptions) return;
+    const dumped = JSON.stringify(q);
+    check("no correctAnswer key on the payload", !("correctAnswer" in q));
+    check("no isCorrect key on the payload", !("isCorrect" in q));
+    check("no explanation in the payload", !("explanation" in q) && !dumped.includes("correction"));
+    // The subset is stable for the question's lifetime, like the full options.
+    check("subset unchanged on repeat read",
+      JSON.stringify(engine.getCurrentQuestion().mobileOptions) === JSON.stringify(q.mobileOptions));
+    check("subset is never longer than the full options", q.mobileOptions.length <= q.options.length);
+  });
+
   await test("no answer leakage in public read APIs", async () => {
     const engine = await engineReadyFor(3);
     engine.startChallenge(1, 3);
@@ -342,6 +417,56 @@ function fakeLocalStorage() {
     check("no isCorrect in public payloads", !dumped.includes("isCorrect"));
     check("no explanation leak pre-answer", !dumped.includes("With she, add -s"));
     check("getChallenge has no questions array", engine.getChallenge(1, 3).questions === undefined);
+  });
+
+  await test("every option question in the data can produce a two-choice phone subset", async () => {
+    // Pure data sweep: for all 120 questions, confirm the phone subset is
+    // always the correct answer plus exactly one real decoy.
+    const engine = await newEngine();
+    let optionQuestions = 0;
+    let bad = [];
+    const sides = [0, 0]; // how often the correct answer was fielded first / second
+    (jsonData.levels || []).forEach((level) => {
+      (level.challenges || []).forEach((challenge) => {
+        (challenge.questions || []).forEach((src) => {
+          if (!Array.isArray(src.options) || src.options.length < 2) return;
+          optionQuestions++;
+          // Rebuild the session so this exact question is dealt. The level is made the
+          // only one and the question goes into its challenge 1, because later
+          // challenges (and later levels) are locked in a fresh profile;
+          // buildMobileOptions only looks at the question itself.
+          const data = clone(jsonData);
+          const target = clone(data.levels.find((x) => x.id === level.id));
+          target.challenges[0].questions = [clone(src)];
+          target.challenges[0].settings.questionCount = 1;
+          data.levels = [target];
+          const solo = new GrammarQuestEngine({ storageAdapter: createMemoryAdapter() });
+          let problem = null;
+          solo.init({ data }).then(() => {
+            solo.startChallenge(level.id, 1);
+            const pub = solo.getCurrentQuestion();
+            const m = pub && pub.mobileOptions;
+            const norm = (s) => String(s).trim().toLowerCase();
+            if (!Array.isArray(m) || m.length !== 2) problem = "subset size " + (m ? m.length : "none");
+            else if (!m.some((s) => norm(s) === norm(src.correctAnswer))) problem = "correct answer missing";
+            else if (m.filter((s) => norm(s) === norm(src.correctAnswer)).length !== 1) problem = "duplicate entries";
+            else if (!m.every((s) => pub.options.includes(s))) problem = "entry outside options";
+            else {
+              sides[m.findIndex((s) => norm(s) === norm(src.correctAnswer))]++;
+              const feedback = solo.submitAnswer(m.find((s) => norm(s) === norm(src.correctAnswer)));
+              if (!feedback.accepted || !feedback.correct) problem = "fielded answer rejected";
+              if (feedback.correctAnswer !== src.correctAnswer) problem = "reveal changed";
+              if (feedback.explanation !== src.explanation) problem = "explanation changed";
+            }
+            if (problem) bad.push("L" + level.id + "C" + challenge.id + " q" + src.id + ": " + problem);
+          }).catch((err) => bad.push("L" + level.id + "C" + challenge.id + " q" + src.id + ": threw " + err.message));
+        });
+      });
+    });
+    await sleep(600); // let every async init() resolve
+    check("option questions found in the data", optionQuestions === 26, optionQuestions);
+    check("every option question yields a valid two-choice subset", bad.length === 0, bad);
+    check("correct answer is fielded on both sides across the data", sides[0] > 0 && sides[1] > 0, sides);
   });
 
   await test("timer reaches zero and ends the challenge exactly once", async () => {
