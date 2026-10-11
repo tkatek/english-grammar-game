@@ -1994,6 +1994,9 @@ body.reduce-motion .loading__bar-fill::after { animation: none; }
 
 /* ---- Top HUD: level chip | green progress | hearts timer score ---- */
 .gamebar {
+  position: relative;   /* above the whole .whack stack — the pause veil must
+                           never reach the HUD with its grayscale backdrop */
+  z-index: 1;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -2153,6 +2156,8 @@ body.reduce-motion .loading__bar-fill::after { animation: none; }
    controls like Pause and the feedback card's Next button.) */
 .whack {
   position: relative;
+  z-index: 0;          /* own stacking context: confines the field's internal
+                          layers so the purple header always paints above them */
   flex: 1;
   min-height: 0;
   border-radius: 18px;
@@ -3171,6 +3176,129 @@ body.reduce-motion .hammer-cursor.is-whacking .hammer-cursor__img {
 
 .pause-pill:active { transform: translateY(1px) scale(0.98); }
 .pause-pill .icon { width: 15px; height: 15px; }
+
+/* ---- Cinematic pause -----------------------------------------------------
+   One layer, one filter pass: the veil sits on top of the field and treats
+   everything already painted under it as its backdrop, so the whole scene
+   (background art, instruction card, animals, paddles, feedback) is drained
+   to grayscale, softened and dimmed by ONE backdrop-filter — no per-element
+   filters, no extra layers, no blur animation loop. The Play button is a
+   sibling painted above the veil, so it stays sharp, gold and colorful.
+   The purple header lives in .gamebar, which paints above .whack's whole
+   stacking context and is therefore not part of the veil's backdrop. */
+.pause-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(8px + var(--sat)) 8px calc(8px + var(--sab));
+  -webkit-backdrop-filter: grayscale(100%) blur(4px) brightness(0.86);
+  backdrop-filter: grayscale(100%) blur(4px) brightness(0.86);
+  /* Swallow every tap/click aimed at the frozen field underneath. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  tap-highlight-color: transparent;
+  animation: pause-veil-in 200ms ease both;
+}
+
+/* No backdrop-filter support: fall back to a plain dim so the frozen scene
+   still reads as "paused" instead of staying fully interactive-looking. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .pause-veil { background: rgba(28, 22, 44, 0.55); }
+}
+
+.pause-veil[hidden] { display: none; }
+
+@keyframes pause-veil-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* The one control on the pause screen: a big golden arcade coin. */
+.pause-play {
+  --play-size: min(clamp(92px, 26vmin, 156px), 34vh); /* comfortable thumb
+                                                       target on phones, still
+                                                       tamed on short landscape */
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: var(--play-size);
+  height: var(--play-size);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  tap-highlight-color: transparent;
+  animation: pause-play-in 320ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+/* Coin face: gold rim, domed gradient, lit from the top-left. */
+.pause-play__face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(68% 62% at 30% 22%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 58%),
+    radial-gradient(96% 96% at 50% 30%, #FFE07A 0%, #FFC531 46%, #F0A81C 78%, #D98A0B 100%);
+  border: 3px solid #E8A81E;
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 244, 200, 0.85),   /* bright inner ring */
+    inset 0 -10px 20px rgba(163, 96, 0, 0.35),   /* bottom shading    */
+    0 10px 24px rgba(20, 12, 48, 0.45),          /* drop shadow       */
+    0 0 26px 6px rgba(255, 197, 49, 0.55);       /* soft golden glow  */
+  transition: transform 140ms ease;
+}
+
+.pause-play__icon {
+  width: 42%;
+  height: 42%;
+  margin-left: 7%;        /* optical centring for a right-pointing triangle */
+  fill: #2A1A5E;          /* dark purple play mark */
+  filter: drop-shadow(0 2px 2px rgba(90, 50, 0, 0.35));
+}
+
+/* Halo pulse: transform/opacity only, no filter, no repaint of the backdrop. */
+.pause-play::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255, 214, 102, 0.55);
+  opacity: 0.9;
+  animation: pause-play-pulse 2.6s ease-in-out infinite;
+}
+
+.pause-play:active .pause-play__face { transform: scale(0.94); }
+
+@keyframes pause-play-in {
+  from { opacity: 0; transform: scale(0.7); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pause-play-pulse {
+  0%   { transform: scale(1);    opacity: 0.75; }
+  70%  { transform: scale(1.28); opacity: 0; }
+  100% { transform: scale(1.28); opacity: 0; }
+}
+
+/* Freeze every animation in the field while paused. animation-play-state keeps
+   each keyframe's current time, so lifting the freeze continues the idle
+   breathing / dizzy spin exactly where it stopped — no restart, no jump.
+   `!important` is deliberate: the per-element `animation:` shorthands would
+   otherwise reset play-state back to running at a higher specificity. */
+.whack.is-paused > *:not(.pause-veil),
+.whack.is-paused > *:not(.pause-veil)::before,
+.whack.is-paused > *:not(.pause-veil)::after,
+.whack.is-paused > *:not(.pause-veil) *,
+.whack.is-paused > *:not(.pause-veil) *::before,
+.whack.is-paused > *:not(.pause-veil) *::after {
+  animation-play-state: paused !important;
+}
 
 /* (Score popups are defined once above, next to the paddle styles.) */
 

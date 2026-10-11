@@ -11,12 +11,12 @@
   <!-- Asset versioning: bump ?v= whenever css/js changes so every browser
        (GitHub Pages caches HTML for ~10 min) drops its old copy and pulls
        the fixed build immediately. -->
-  <link rel="stylesheet" href="css/style.css?v=2026-10-11-3">
-  <script src="js/audio.js?v=2026-10-11-3" defer></script>
-  <script src="js/speech.js?v=2026-10-11-3" defer></script>
-  <script src="js/loader.js?v=2026-10-11-3" defer></script>
-  <script src="js/game.js?v=2026-10-11-3" defer></script>
-  <script src="js/ui.js?v=2026-10-11-3" defer></script>
+  <link rel="stylesheet" href="css/style.css?v=2026-10-11-4">
+  <script src="js/audio.js?v=2026-10-11-4" defer></script>
+  <script src="js/speech.js?v=2026-10-11-4" defer></script>
+  <script src="js/loader.js?v=2026-10-11-4" defer></script>
+  <script src="js/game.js?v=2026-10-11-4" defer></script>
+  <script src="js/ui.js?v=2026-10-11-4" defer></script>
 </head>
 <body>
   <!-- ============ SVG ICON SPRITE (Lucide-style, 24px grid) ============
@@ -414,6 +414,17 @@
           <div class="feedback-card__body" id="feedback-detail"></div>
           <button type="button" class="feedback-card__next" id="feedback-continue">Next</button>
         </div>
+
+        <!-- Cinematic pause: the veil freezes, greys and blurs the SCENE only
+             (the purple header above .whack is never part of its backdrop),
+             and carries the one big golden Play button that resumes play. -->
+        <div class="pause-veil" id="pause-veil" role="dialog" aria-label="Game paused" hidden>
+          <button type="button" class="pause-play" id="pause-play" aria-label="Resume game">
+            <span class="pause-play__face" aria-hidden="true">
+              <svg class="pause-play__icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-play"/></svg>
+            </span>
+          </button>
+        </div>
       </div>
     </section>
 
@@ -446,17 +457,9 @@
     </section>
   </div>
 
-  <!-- ============================== MODALS ============================== -->
+  <!-- ============================== MODALS ==============================
+       Pause has no modal: it is the in-field #pause-veil (see #whack). -->
   <div class="modal-root" id="modal-root" hidden>
-    <div class="modal modal--pause" id="modal-pause" role="dialog" aria-modal="true" aria-label="Game paused" hidden>
-      <h2 class="modal__title">Paused</h2>
-      <div class="modal__actions">
-        <button type="button" class="btn btn--primary btn--block" id="pause-resume">Resume</button>
-        <button type="button" class="btn btn--secondary btn--block" id="pause-restart">Restart Challenge</button>
-        <button type="button" class="btn btn--ghost btn--block" id="pause-exit">Exit to Level</button>
-      </div>
-    </div>
-
     <div class="modal modal--help" id="modal-help" role="dialog" aria-modal="true" aria-label="How to play" hidden>
       <img class="modal__mascot" src="assets/images/mascots/owl.webp"
            onerror="this.onerror=null;this.src='assets/images/mascots/owl.png'" alt="" width="96" height="92">

@@ -4,7 +4,7 @@
  * Subscribes to the game engine (js/game.js) and renders screens. Contains
  * no game rules: all state transitions go through engine action methods.
  * Screens: loading, home, map, level, intro, game, results, review,
- * level-complete, error + modals (pause / help / confirm).
+ * level-complete, error + modals (help / confirm) + the in-field pause veil.
  * ========================================================================== */
 (function () {
   "use strict";
@@ -282,6 +282,7 @@
     levelJustCompleted: null,
     reviewReturn: "results",
     modalStack: [],
+    pauseOpen: false,        // cinematic #pause-veil is up (engine is PAUSED)
     layoutMobile: false,
     resizeTimer: null,
     mapTier: null,            // active map device class (desktop|tablet|mobile)
@@ -405,6 +406,7 @@
 
   function showScreen(name) {
     ctx.screen = name;
+    if (name !== "game") closePauseVeil(); // never strand the veil on another screen
     Object.values(SCREENS).forEach((sel) => { $(sel).hidden = true; });
     const target = $(SCREENS[name]);
     if (target) target.hidden = false;
@@ -427,7 +429,7 @@
 
   /* ------------------------------- modals ------------------------------ */
 
-  const MODALS = { pause: "#modal-pause", help: "#modal-help", confirm: "#modal-confirm" };
+  const MODALS = { help: "#modal-help", confirm: "#modal-confirm" };
 
   function openModal(name) {
     ctx.modalStack.push(name);
@@ -452,6 +454,47 @@
     ctx.modalStack = [];
     $("#modal-root").hidden = true;
     Object.values(MODALS).forEach((sel) => { $(sel).hidden = true; });
+  }
+
+  /* ---------------------------- pause veil -------------------------------
+   * Pausing is a full stop of the GAMEPLAY SCENE, not a dialog: #pause-veil
+   * covers .whack only, so the purple header (level, hearts, score, progress)
+   * stays fully colorful and readable. The veil's backdrop-filter drains the
+   * scene to grayscale + blurs + dims it, while `.is-paused` on the field
+   * freezes every animation in place. The single golden Play button is a
+   * sibling painted above the veil, so it stays sharp and colorful.
+   * Tapping it takes everything back off again — engine.resume() rebases the
+   * countdown deadline on the time that was left, and the frozen CSS
+   * animations continue from their exact paused keyframe.
+   * -------------------------------------------------------------------- */
+  const pauseVeil = $("#pause-veil");
+  const pausePlay = $("#pause-play");
+  let pauseTapsBlocked = false; // swallows a bounce-back tap on the way in/out
+
+  function openPauseVeil() {
+    if (ctx.screen !== "game" || !pauseVeil.hidden) return;
+    ctx.pauseOpen = true;
+    $("#whack").classList.add("is-paused");
+    pauseVeil.hidden = false;
+    Speech.stop();               // no talking over the pause screen
+    clearSpeakingMarks();
+    pausePlay.focus({ preventScroll: true });
+    pauseTapsBlocked = true;
+    setTimeout(() => { pauseTapsBlocked = false; }, 250);
+  }
+
+  function closePauseVeil() {
+    ctx.pauseOpen = false;
+    $("#whack").classList.remove("is-paused");
+    pauseVeil.hidden = true;
+  }
+
+  function resumeFromPauseVeil() {
+    if (pauseTapsBlocked || pauseVeil.hidden) return; // one resume per tap
+    pauseTapsBlocked = true;
+    closePauseVeil();      // colours, blur and freeze come off immediately
+    engine.resume();       // rebases the countdown on the remaining time
+    setTimeout(() => { pauseTapsBlocked = false; }, 250);
   }
 
   /* --------------------------- hammer game cursor ----------------------
@@ -2615,21 +2658,23 @@
 
     engine.on(E.PAUSED, () => {
       HammerCursor.sync(); // paused: back to a normal cursor over the arena
-      // Silent reading pause (question intro beat): no menu, play continues
+      // Silent reading pause (question intro beat): no veil, play continues
       // as soon as the card docks.
       if (ctx.questionIntro && ctx.questionIntro.pausedByIntro) return;
-      // Silent feedback pause (verdict card up): no menu, the clock waits
+      // Silent feedback pause (verdict card up): no veil, the clock waits
       // until the learner taps Next.
       if (ctx.feedbackPause) return;
-      if (ctx.screen === "game" && ctx.modalStack[ctx.modalStack.length - 1] !== "pause") {
-        openModal("pause");
-      }
+      openPauseVeil();
     });
 
     engine.on(E.RESUMED, () => {
       HammerCursor.sync(); // HUD already reflects ticks; re-arm the hammer
+      // Tapping Play (or Escape) always takes the grayscale/blur/freeze off —
+      // including the silent resumes below, which are no-ops when the veil is
+      // already down.
+      closePauseVeil();
       // The clock must stay frozen while the verdict card waits for Next —
-      // closing the pause menu must not restart it under the card.
+      // resuming must not restart it under the card.
       if (ctx.feedbackPause && !$("#feedback").hidden) engine.pause();
     });
 
@@ -2769,13 +2814,13 @@
 
     $("#hud-pause").addEventListener("click", () => {
       // Verdict card up: the engine is already (silently) paused under it —
-      // just open the pause menu; resume re-freezes until Next.
+      // just raise the veil; Play re-freezes until Next.
       if (ctx.feedbackPause) {
-        if (ctx.screen === "game" && ctx.modalStack[ctx.modalStack.length - 1] !== "pause") openModal("pause");
+        openPauseVeil();
         return;
       }
       // During the reading beat the engine is already (silently) paused:
-      // end the beat so the board is out, then open the pause menu normally.
+      // end the beat so the board is out, then pause normally.
       if (ctx.questionIntro) {
         const intro = ctx.questionIntro;
         clearQuestionIntro();
@@ -2785,18 +2830,8 @@
       if (!outcome.paused) toast(outcome.reason || "Cannot pause now", "pause");
     });
 
-    $("#pause-resume").addEventListener("click", () => {
-      closeModal();
-      engine.resume();
-    });
-    $("#pause-restart").addEventListener("click", () => {
-      closeAllModals();
-      engine.retryChallenge();
-    });
-    $("#pause-exit").addEventListener("click", () => {
-      closeAllModals();
-      engine.abortChallenge();
-    });
+    // The golden Play button is the ONLY control on the pause screen.
+    $("#pause-play").addEventListener("click", resumeFromPauseVeil);
 
     $("#home-help").addEventListener("click", () => openModal("help"));
     $("#help-close").addEventListener("click", closeModal);
@@ -2855,12 +2890,15 @@
   function onKeydown(event) {
     const topModal = ctx.modalStack[ctx.modalStack.length - 1];
     if (event.key === "Escape") {
-      if (topModal === "pause") { closeModal(); engine.resume(); return; }
+      if (ctx.pauseOpen) { resumeFromPauseVeil(); return; }
       if (topModal) { closeModal(); return; }
       if (!$("#feedback").hidden) { $("#feedback-continue").click(); return; }
       if (ctx.screen === "game" && engine.status === "playing") { engine.pause(); }
       return;
     }
+    // The veil swallows every tap on the field, so keyboard focus must stop
+    // there too while the game is frozen.
+    if (ctx.pauseOpen) return;
     if (topModal) return;
 
     if (ctx.screen === "game") {
