@@ -29,16 +29,10 @@
           "type": "correct_sentence",
           "difficulty": "easy",
           "settings": {
-            "questionCount": 4,
             "timeLimitSeconds": 90,
             "lives": 3,
             "passingPercentage": 70,
-            "maxStars": 3,
-            "starThresholds": {
-              "oneStar": 70,
-              "twoStars": 80,
-              "threeStars": 90
-            }
+            "questionCount": 4
           },
           "questions": [
             {
@@ -59,47 +53,67 @@
               "isCorrect": false,
               "correctAnswer": "He plays football every Sunday.",
               "correction": "He plays football every Sunday.",
-              "explanation": "With he, use plays, not play."
+              "explanation": "With he, she and it, add -s to the verb."
             },
             {
               "id": 3,
               "type": "correct_incorrect",
               "prompt": "Choose the correct sentence.",
-              "text": "My sister works in a hospital.",
+              "text": "I drink tea in the morning.",
               "isCorrect": true,
-              "correctAnswer": "My sister works in a hospital.",
+              "correctAnswer": "I drink tea in the morning.",
               "correction": null,
-              "explanation": "My sister is third-person singular, so work becomes works."
+              "explanation": "With I, the verb has no -s."
             },
             {
               "id": 4,
               "type": "correct_incorrect",
               "prompt": "Choose the correct sentence.",
-              "text": "Tom watch TV at night.",
+              "text": "My sister watch TV after dinner.",
               "isCorrect": false,
-              "correctAnswer": "Tom watches TV at night.",
-              "correction": "Tom watches TV at night.",
-              "explanation": "With Tom (he), watch becomes watches."
+              "correctAnswer": "My sister watches TV after dinner.",
+              "correction": "My sister watches TV after dinner.",
+              "explanation": "With he, she and it, add -s to the verb."
             },
             {
               "id": 5,
               "type": "correct_incorrect",
               "prompt": "Choose the correct sentence.",
-              "text": "The bus arrives at seven.",
+              "text": "We go to school by bus.",
               "isCorrect": true,
-              "correctAnswer": "The bus arrives at seven.",
+              "correctAnswer": "We go to school by bus.",
               "correction": null,
-              "explanation": "The bus is singular, so arrive becomes arrives."
+              "explanation": "With we, the verb has no -s."
             },
             {
               "id": 6,
               "type": "correct_incorrect",
               "prompt": "Choose the correct sentence.",
-              "text": "Anna and Leo walks to school.",
+              "text": "It rain a lot in April.",
               "isCorrect": false,
-              "correctAnswer": "Anna and Leo walk to school.",
-              "correction": "Anna and Leo walk to school.",
-              "explanation": "A plural subject takes the base verb: walk."
+              "correctAnswer": "It rains a lot in April.",
+              "correction": "It rains a lot in April.",
+              "explanation": "With it, add -s to the verb."
+            },
+            {
+              "id": 7,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "The dog barks at strangers.",
+              "isCorrect": true,
+              "correctAnswer": "The dog barks at strangers.",
+              "correction": null,
+              "explanation": "The dog = it, so the verb takes -s."
+            },
+            {
+              "id": 8,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "Tom don't like vegetables.",
+              "isCorrect": false,
+              "correctAnswer": "Tom doesn't like vegetables.",
+              "correction": "Tom doesn't like vegetables.",
+              "explanation": "With he, she and it, use doesn't."
             }
           ]
         },
@@ -109,77 +123,91 @@
           "type": "incorrect_sentence",
           "difficulty": "easy",
           "settings": {
-            "questionCount": 4,
             "timeLimitSeconds": 90,
             "lives": 3,
             "passingPercentage": 70,
-            "maxStars": 3,
-            "starThresholds": {
-              "oneStar": 70,
-              "twoStars": 80,
-              "threeStars": 90
-            }
+            "questionCount": 4
           },
           "questions": [
             {
               "id": 1,
               "type": "correct_incorrect",
               "prompt": "Hit the sentence with a mistake.",
-              "text": "She don't like coffee.",
-              "isCorrect": false,
-              "correctAnswer": "She doesn't like coffee.",
-              "correction": "She doesn't like coffee.",
-              "explanation": "Use doesn't with he, she and it."
+              "text": "Anna works at the hospital.",
+              "isCorrect": true,
+              "correctAnswer": "Anna works at the hospital.",
+              "correction": null,
+              "explanation": "With she, the verb takes -s."
             },
             {
               "id": 2,
               "type": "correct_incorrect",
               "prompt": "Hit the sentence with a mistake.",
-              "text": "He doesn't work on Sundays.",
-              "isCorrect": true,
-              "correctAnswer": "He doesn't work on Sundays.",
-              "correction": null,
-              "explanation": "After doesn't, use the base form of the verb."
+              "text": "They doesn't live in Madrid.",
+              "isCorrect": false,
+              "correctAnswer": "They don't live in Madrid.",
+              "correction": "They don't live in Madrid.",
+              "explanation": "With they, use don't."
             },
             {
               "id": 3,
               "type": "correct_incorrect",
               "prompt": "Hit the sentence with a mistake.",
-              "text": "My brother doesn't likes pizza.",
-              "isCorrect": false,
-              "correctAnswer": "My brother doesn't like pizza.",
-              "correction": "My brother doesn't like pizza.",
-              "explanation": "After doesn't, use like, not likes."
+              "text": "My father cooks dinner on Fridays.",
+              "isCorrect": true,
+              "correctAnswer": "My father cooks dinner on Fridays.",
+              "correction": null,
+              "explanation": "With he, the verb takes -s."
             },
             {
               "id": 4,
               "type": "correct_incorrect",
               "prompt": "Hit the sentence with a mistake.",
-              "text": "Sara studies English every day.",
-              "isCorrect": true,
-              "correctAnswer": "Sara studies English every day.",
-              "correction": null,
-              "explanation": "Study changes to studies with he, she and it."
+              "text": "She don't speak French.",
+              "isCorrect": false,
+              "correctAnswer": "She doesn't speak French.",
+              "correction": "She doesn't speak French.",
+              "explanation": "With she, use doesn't."
             },
             {
               "id": 5,
               "type": "correct_incorrect",
               "prompt": "Hit the sentence with a mistake.",
-              "text": "Does your teacher gives homework?",
-              "isCorrect": false,
-              "correctAnswer": "Does your teacher give homework?",
-              "correction": "Does your teacher give homework?",
-              "explanation": "After does, use the base verb give."
+              "text": "The train leaves at eight.",
+              "isCorrect": true,
+              "correctAnswer": "The train leaves at eight.",
+              "correction": null,
+              "explanation": "The train = it, so the verb takes -s."
             },
             {
               "id": 6,
               "type": "correct_incorrect",
               "prompt": "Hit the sentence with a mistake.",
-              "text": "The shop closes at nine.",
+              "text": "Mark don't play the piano.",
+              "isCorrect": false,
+              "correctAnswer": "Mark doesn't play the piano.",
+              "correction": "Mark doesn't play the piano.",
+              "explanation": "With he, use doesn't."
+            },
+            {
+              "id": 7,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "I always eat breakfast.",
               "isCorrect": true,
-              "correctAnswer": "The shop closes at nine.",
+              "correctAnswer": "I always eat breakfast.",
               "correction": null,
-              "explanation": "The singular subject shop takes closes."
+              "explanation": "With I, the verb has no -s."
+            },
+            {
+              "id": 8,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "Water boil at 100 degrees.",
+              "isCorrect": false,
+              "correctAnswer": "Water boils at 100 degrees.",
+              "correction": "Water boils at 100 degrees.",
+              "explanation": "Water = it, so the verb takes -s."
             }
           ]
         },
@@ -189,11 +217,10 @@
           "type": "mixed",
           "difficulty": "medium",
           "settings": {
-            "questionCount": 4,
-            "timeLimitSeconds": 120,
+            "timeLimitSeconds": 90,
             "lives": 3,
-            "passingPercentage": 80,
-            "maxStars": 3,
+            "passingPercentage": 70,
+            "questionCount": 4,
             "starThresholds": {
               "oneStar": 80,
               "twoStars": 90,
@@ -205,79 +232,99 @@
               "id": 1,
               "type": "missing_word",
               "prompt": "Choose the missing word.",
-              "text": "She ___ bananas.",
+              "text": "My brother ___ to music every night.",
               "options": [
-                "like",
-                "likes",
-                "liking"
+                "listens",
+                "listen",
+                "listening"
               ],
-              "correctAnswer": "likes",
-              "correction": "She likes bananas.",
-              "explanation": "With she, add -s to the verb."
+              "correctAnswer": "listens",
+              "correction": "My brother listens to music every night.",
+              "explanation": "With he, add -s to the verb."
             },
             {
               "id": 2,
-              "type": "missing_word",
-              "prompt": "Choose the missing word.",
-              "text": "My mother ___ to work at 8:00.",
-              "options": [
-                "go",
-                "goes",
-                "going"
-              ],
-              "correctAnswer": "goes",
-              "correction": "My mother goes to work at 8:00.",
-              "explanation": "Go becomes goes with he, she and it."
+              "type": "correct_incorrect",
+              "prompt": "Is this sentence correct?",
+              "text": "She teaches English at our school.",
+              "isCorrect": true,
+              "correctAnswer": "She teaches English at our school.",
+              "correction": null,
+              "explanation": "With she, the verb takes -s."
             },
             {
               "id": 3,
-              "type": "correct_incorrect",
-              "prompt": "Choose quickly: correct or incorrect?",
-              "text": "It rain a lot here.",
-              "isCorrect": false,
-              "correctAnswer": "It rains a lot here.",
-              "correction": "It rains a lot here.",
-              "explanation": "With it, add -s to rain."
+              "type": "missing_word",
+              "prompt": "Choose the missing word.",
+              "text": "We ___ our grandparents on Sundays.",
+              "options": [
+                "visit",
+                "visits",
+                "visiting"
+              ],
+              "correctAnswer": "visit",
+              "correction": "We visit our grandparents on Sundays.",
+              "explanation": "With we, the verb has no -s."
             },
             {
               "id": 4,
               "type": "multiple_choice",
               "prompt": "Choose the correct sentence.",
               "options": [
-                "She don't like coffee.",
-                "She doesn't likes coffee.",
-                "She doesn't like coffee."
+                "Cats sleep a lot.",
+                "Cats sleeps a lot.",
+                "Cats sleeping a lot."
               ],
-              "correctAnswer": "She doesn't like coffee.",
-              "correction": "She doesn't like coffee.",
-              "explanation": "Use doesn't + base verb with he, she and it."
+              "correctAnswer": "Cats sleep a lot.",
+              "correction": "Cats sleep a lot.",
+              "explanation": "Plural subjects take the verb without -s."
             },
             {
               "id": 5,
-              "type": "missing_word",
-              "prompt": "Choose the missing word.",
-              "text": "The baby ___ when it is hungry.",
-              "options": [
-                "cry",
-                "cries",
-                "crying"
-              ],
-              "correctAnswer": "cries",
-              "correction": "The baby cries when it is hungry.",
-              "explanation": "A consonant + y changes to -ies for a singular subject."
+              "type": "correct_incorrect",
+              "prompt": "Is this sentence correct?",
+              "text": "He don't know the answer.",
+              "isCorrect": false,
+              "correctAnswer": "He doesn't know the answer.",
+              "correction": "He doesn't know the answer.",
+              "explanation": "With he, use doesn't."
             },
             {
               "id": 6,
-              "type": "multiple_choice",
-              "prompt": "Choose the correct question.",
+              "type": "missing_word",
+              "prompt": "Choose the missing word.",
+              "text": "The shop ___ at nine o'clock.",
               "options": [
-                "Do she speak French?",
-                "Does she speaks French?",
-                "Does she speak French?"
+                "opens",
+                "open",
+                "opening"
               ],
-              "correctAnswer": "Does she speak French?",
-              "correction": "Does she speak French?",
-              "explanation": "Use does + subject + base verb in present-simple questions."
+              "correctAnswer": "opens",
+              "correction": "The shop opens at nine o'clock.",
+              "explanation": "The shop = it, so the verb takes -s."
+            },
+            {
+              "id": 7,
+              "type": "multiple_choice",
+              "prompt": "Choose the correct sentence.",
+              "options": [
+                "I like ice cream.",
+                "I likes ice cream.",
+                "I liking ice cream."
+              ],
+              "correctAnswer": "I like ice cream.",
+              "correction": "I like ice cream.",
+              "explanation": "With I, the verb has no -s."
+            },
+            {
+              "id": 8,
+              "type": "correct_incorrect",
+              "prompt": "Is this sentence correct?",
+              "text": "Lions lives in Africa.",
+              "isCorrect": false,
+              "correctAnswer": "Lions live in Africa.",
+              "correction": "Lions live in Africa.",
+              "explanation": "Plural subjects take the verb without -s."
             }
           ]
         }
@@ -362,6 +409,26 @@
               "correctAnswer": "You are doing a great job.",
               "correction": "You are doing a great job.",
               "explanation": "Use are with you."
+            },
+            {
+              "id": 7,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "We are waiting for the bus.",
+              "isCorrect": true,
+              "correctAnswer": "We are waiting for the bus.",
+              "correction": null,
+              "explanation": "are + verb-ing is correct here."
+            },
+            {
+              "id": 8,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "The boys is playing football.",
+              "isCorrect": false,
+              "correctAnswer": "The boys are playing football.",
+              "correction": "The boys are playing football.",
+              "explanation": "The boys = they, so use are."
             }
           ]
         },
@@ -421,6 +488,16 @@
               "id": 5,
               "type": "correct_incorrect",
               "prompt": "Hit the sentence with a mistake.",
+              "text": "I is working today.",
+              "isCorrect": false,
+              "correctAnswer": "I am working today.",
+              "correction": "I am working today.",
+              "explanation": "Use am with I."
+            },
+            {
+              "id": 6,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
               "text": "She is talking to her friend now.",
               "isCorrect": true,
               "correctAnswer": "She is talking to her friend now.",
@@ -428,14 +505,24 @@
               "explanation": "is + verb-ing is correct here."
             },
             {
-              "id": 6,
+              "id": 7,
               "type": "correct_incorrect",
               "prompt": "Hit the sentence with a mistake.",
-              "text": "I is working today.",
+              "text": "He are driving to work.",
               "isCorrect": false,
-              "correctAnswer": "I am working today.",
-              "correction": "I am working today.",
-              "explanation": "Use am with I."
+              "correctAnswer": "He is driving to work.",
+              "correction": "He is driving to work.",
+              "explanation": "Use is with he."
+            },
+            {
+              "id": 8,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "Look! It is raining outside.",
+              "isCorrect": true,
+              "correctAnswer": "Look! It is raining outside.",
+              "correction": null,
+              "explanation": "Happening now: is + verb-ing."
             }
           ]
         },
@@ -474,37 +561,14 @@
               "id": 2,
               "type": "correct_incorrect",
               "prompt": "Is this sentence correct?",
-              "text": "They is waiting for the bus.",
+              "text": "They is waiting for the taxi.",
               "isCorrect": false,
-              "correctAnswer": "They are waiting for the bus.",
-              "correction": "They are waiting for the bus.",
+              "correctAnswer": "They are waiting for the taxi.",
+              "correction": "They are waiting for the taxi.",
               "explanation": "Use are with they."
             },
             {
               "id": 3,
-              "type": "multiple_choice",
-              "prompt": "Choose the correct sentence.",
-              "options": [
-                "He is having a shower.",
-                "He is have a shower.",
-                "He having a shower."
-              ],
-              "correctAnswer": "He is having a shower.",
-              "correction": "He is having a shower.",
-              "explanation": "is + verb-ing forms the present continuous."
-            },
-            {
-              "id": 4,
-              "type": "correct_incorrect",
-              "prompt": "Is this sentence correct?",
-              "text": "I am enjoying this game.",
-              "isCorrect": true,
-              "correctAnswer": "I am enjoying this game.",
-              "correction": null,
-              "explanation": "am + verb-ing is correct here."
-            },
-            {
-              "id": 5,
               "type": "missing_word",
               "prompt": "Choose the missing word.",
               "text": "Look! The children ___ in the garden.",
@@ -518,7 +582,57 @@
               "explanation": "Right now needs are + verb-ing."
             },
             {
+              "id": 4,
+              "type": "multiple_choice",
+              "prompt": "Choose the correct sentence.",
+              "options": [
+                "He is having a shower.",
+                "He is have a shower.",
+                "He having a shower."
+              ],
+              "correctAnswer": "He is having a shower.",
+              "correction": "He is having a shower.",
+              "explanation": "is + verb-ing forms the present continuous."
+            },
+            {
+              "id": 5,
+              "type": "correct_incorrect",
+              "prompt": "Is this sentence correct?",
+              "text": "I am enjoying this game.",
+              "isCorrect": true,
+              "correctAnswer": "I am enjoying this game.",
+              "correction": null,
+              "explanation": "am + verb-ing is correct here."
+            },
+            {
               "id": 6,
+              "type": "missing_word",
+              "prompt": "Choose the missing word.",
+              "text": "My parents ___ TV right now.",
+              "options": [
+                "are watching",
+                "watch",
+                "watching"
+              ],
+              "correctAnswer": "are watching",
+              "correction": "My parents are watching TV right now.",
+              "explanation": "Right now needs are + verb-ing."
+            },
+            {
+              "id": 7,
+              "type": "multiple_choice",
+              "prompt": "Choose the correct sentence.",
+              "options": [
+                "We are making a cake.",
+                "We is making a cake.",
+                "We am making a cake."
+              ],
+              "correctAnswer": "We are making a cake.",
+              "correction": "We are making a cake.",
+              "explanation": "Use are with we."
+            },
+            {
+              "id": 8,
               "type": "correct_incorrect",
               "prompt": "Is this sentence correct?",
               "text": "He is write an email.",
@@ -610,6 +724,26 @@
               "correctAnswer": "She took the bus this morning.",
               "correction": "She took the bus this morning.",
               "explanation": "take becomes took."
+            },
+            {
+              "id": 7,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "The concert finished at ten o'clock.",
+              "isCorrect": true,
+              "correctAnswer": "The concert finished at ten o'clock.",
+              "correction": null,
+              "explanation": "Regular verbs add -ed in the past."
+            },
+            {
+              "id": 8,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "He catched a big fish.",
+              "isCorrect": false,
+              "correctAnswer": "He caught a big fish.",
+              "correction": "He caught a big fish.",
+              "explanation": "catch becomes caught."
             }
           ]
         },
@@ -669,9 +803,9 @@
               "id": 5,
               "type": "correct_incorrect",
               "prompt": "Hit the sentence with a mistake.",
-              "text": "We didn't know the answer.",
+              "text": "They didn't know the answer.",
               "isCorrect": true,
-              "correctAnswer": "We didn't know the answer.",
+              "correctAnswer": "They didn't know the answer.",
               "correction": null,
               "explanation": "didn't + base verb is correct."
             },
@@ -679,10 +813,30 @@
               "id": 6,
               "type": "correct_incorrect",
               "prompt": "Hit the sentence with a mistake.",
-              "text": "They didn't came home late.",
+              "text": "You didn't came home late.",
               "isCorrect": false,
-              "correctAnswer": "They didn't come home late.",
-              "correction": "They didn't come home late.",
+              "correctAnswer": "You didn't come home late.",
+              "correction": "You didn't come home late.",
+              "explanation": "After didn't, use the base verb."
+            },
+            {
+              "id": 7,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "We didn't hear the doorbell.",
+              "isCorrect": true,
+              "correctAnswer": "We didn't hear the doorbell.",
+              "correction": null,
+              "explanation": "didn't + base verb is correct."
+            },
+            {
+              "id": 8,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "I didn't ate breakfast.",
+              "isCorrect": false,
+              "correctAnswer": "I didn't eat breakfast.",
+              "correction": "I didn't eat breakfast.",
               "explanation": "After didn't, use the base verb."
             }
           ]
@@ -712,7 +866,8 @@
               "options": [
                 "went",
                 "goed",
-                "go"
+                "go",
+                "gone"
               ],
               "correctAnswer": "went",
               "correction": "We went to London in 2019.",
@@ -730,30 +885,32 @@
             },
             {
               "id": 3,
-              "type": "multiple_choice",
-              "prompt": "Choose the correct sentence.",
-              "options": [
-                "I didn't see him.",
-                "I didn't saw him.",
-                "I not saw him."
-              ],
-              "correctAnswer": "I didn't see him.",
-              "correction": "I didn't see him.",
-              "explanation": "didn't + base verb makes the past negative."
-            },
-            {
-              "id": 4,
               "type": "missing_word",
               "prompt": "Choose the missing word.",
               "text": "The film ___ late last night.",
               "options": [
                 "started",
                 "starts",
-                "starting"
+                "starting",
+                "start"
               ],
               "correctAnswer": "started",
               "correction": "The film started late last night.",
               "explanation": "Last night needs the past form started."
+            },
+            {
+              "id": 4,
+              "type": "multiple_choice",
+              "prompt": "Choose the correct sentence.",
+              "options": [
+                "I didn't see him.",
+                "I didn't saw him.",
+                "I not saw him.",
+                "I doesn't saw him."
+              ],
+              "correctAnswer": "I didn't see him.",
+              "correction": "I didn't see him.",
+              "explanation": "didn't + base verb makes the past negative."
             },
             {
               "id": 5,
@@ -763,7 +920,8 @@
               "options": [
                 "sang",
                 "sanged",
-                "sings"
+                "sings",
+                "sung"
               ],
               "correctAnswer": "sang",
               "correction": "He sang a beautiful song yesterday.",
@@ -778,6 +936,30 @@
               "correctAnswer": "She didn't like the film.",
               "correction": "She didn't like the film.",
               "explanation": "After didn't, use the base verb."
+            },
+            {
+              "id": 7,
+              "type": "multiple_choice",
+              "prompt": "Choose the correct sentence.",
+              "options": [
+                "They came home early.",
+                "They comed home early.",
+                "They come home early yesterday.",
+                "They comes home early."
+              ],
+              "correctAnswer": "They came home early.",
+              "correction": "They came home early.",
+              "explanation": "come becomes came in the past."
+            },
+            {
+              "id": 8,
+              "type": "correct_incorrect",
+              "prompt": "Is this sentence correct?",
+              "text": "I met my friend at the cafe.",
+              "isCorrect": true,
+              "correctAnswer": "I met my friend at the cafe.",
+              "correction": null,
+              "explanation": "meet becomes met."
             }
           ]
         }
@@ -817,21 +999,21 @@
               "id": 2,
               "type": "correct_incorrect",
               "prompt": "Choose the correct sentence.",
-              "text": "She is taller than her brother.",
-              "isCorrect": true,
-              "correctAnswer": "She is taller than her brother.",
-              "correction": null,
-              "explanation": "Short adjectives add -er."
-            },
-            {
-              "id": 3,
-              "type": "correct_incorrect",
-              "prompt": "Choose the correct sentence.",
               "text": "He is the most fast runner in the class.",
               "isCorrect": false,
               "correctAnswer": "He is the fastest runner in the class.",
               "correction": "He is the fastest runner in the class.",
               "explanation": "Fast is short: use the fastest."
+            },
+            {
+              "id": 3,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "She is taller than her brother.",
+              "isCorrect": true,
+              "correctAnswer": "She is taller than her brother.",
+              "correction": null,
+              "explanation": "Short adjectives add -er."
             },
             {
               "id": 4,
@@ -862,6 +1044,26 @@
               "correctAnswer": "This is the cheapest option.",
               "correction": "This is the cheapest option.",
               "explanation": "Never use most with cheapest."
+            },
+            {
+              "id": 7,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "My new bag is heavier than my old one.",
+              "isCorrect": true,
+              "correctAnswer": "My new bag is heavier than my old one.",
+              "correction": null,
+              "explanation": "Heavy becomes heavier."
+            },
+            {
+              "id": 8,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "She is the most pretty girl in the class.",
+              "isCorrect": false,
+              "correctAnswer": "She is the prettiest girl in the class.",
+              "correction": "She is the prettiest girl in the class.",
+              "explanation": "Pretty ends in -y: use the prettiest."
             }
           ]
         },
@@ -936,6 +1138,26 @@
               "correctAnswer": "He is the strongest boy.",
               "correction": "He is the strongest boy.",
               "explanation": "Never use most with strongest."
+            },
+            {
+              "id": 7,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "This road is narrower than the motorway.",
+              "isCorrect": true,
+              "correctAnswer": "This road is narrower than the motorway.",
+              "correction": null,
+              "explanation": "Narrow doubles the r and adds -er."
+            },
+            {
+              "id": 8,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "Today is more hot than yesterday.",
+              "isCorrect": false,
+              "correctAnswer": "Today is hotter than yesterday.",
+              "correction": "Today is hotter than yesterday.",
+              "explanation": "Hot is short: use hotter."
             }
           ]
         },
@@ -964,7 +1186,8 @@
               "options": [
                 "hotter",
                 "hottest",
-                "more hot"
+                "more hot",
+                "hot"
               ],
               "correctAnswer": "hotter",
               "correction": "Today is hotter than yesterday.",
@@ -977,7 +1200,8 @@
               "options": [
                 "This is the best pizza in town.",
                 "This is the most best pizza in town.",
-                "This is the goodest pizza in town."
+                "This is the goodest pizza in town.",
+                "This is the better pizza in town."
               ],
               "correctAnswer": "This is the best pizza in town.",
               "correction": "This is the best pizza in town.",
@@ -1001,7 +1225,8 @@
               "options": [
                 "worst",
                 "worse",
-                "baddest"
+                "baddest",
+                "more bad"
               ],
               "correctAnswer": "worst",
               "correction": "That was the worst film of the year.",
@@ -1015,7 +1240,8 @@
               "options": [
                 "highest",
                 "higher",
-                "most high"
+                "most high",
+                "more high"
               ],
               "correctAnswer": "highest",
               "correction": "Mount Everest is the highest mountain in the world.",
@@ -1030,6 +1256,31 @@
               "correctAnswer": "This shop is busier than that one.",
               "correction": "This shop is busier than that one.",
               "explanation": "Busy becomes busier."
+            },
+            {
+              "id": 7,
+              "type": "missing_word",
+              "prompt": "Choose the missing word.",
+              "text": "My coffee is ___ than yours.",
+              "options": [
+                "colder",
+                "more cold",
+                "coldest",
+                "cold"
+              ],
+              "correctAnswer": "colder",
+              "correction": "My coffee is colder than yours.",
+              "explanation": "Cold is short: add -er."
+            },
+            {
+              "id": 8,
+              "type": "correct_incorrect",
+              "prompt": "Is this sentence correct?",
+              "text": "Her idea was the most interesting of all.",
+              "isCorrect": true,
+              "correctAnswer": "Her idea was the most interesting of all.",
+              "correction": null,
+              "explanation": "Interesting is long: the most interesting is correct."
             }
           ]
         }
@@ -1059,9 +1310,9 @@
               "id": 1,
               "type": "correct_incorrect",
               "prompt": "Choose the correct sentence.",
-              "text": "I will call you tomorrow.",
+              "text": "I will call you tomorrow morning.",
               "isCorrect": true,
-              "correctAnswer": "I will call you tomorrow.",
+              "correctAnswer": "I will call you tomorrow morning.",
               "correction": null,
               "explanation": "will + base verb talks about the future."
             },
@@ -1099,21 +1350,41 @@
               "id": 5,
               "type": "correct_incorrect",
               "prompt": "Choose the correct sentence.",
-              "text": "They are going to visit us on Sunday.",
+              "text": "You must wear a seatbelt in the car.",
               "isCorrect": true,
-              "correctAnswer": "They are going to visit us on Sunday.",
+              "correctAnswer": "You must wear a seatbelt in the car.",
               "correction": null,
-              "explanation": "be going to + base verb plans the future."
+              "explanation": "must + base verb is correct."
             },
             {
               "id": 6,
               "type": "correct_incorrect",
               "prompt": "Choose the correct sentence.",
-              "text": "I will to remember this day.",
+              "text": "He can to swim very well.",
               "isCorrect": false,
-              "correctAnswer": "I will remember this day.",
-              "correction": "I will remember this day.",
-              "explanation": "After will, use the base verb - no to."
+              "correctAnswer": "He can swim very well.",
+              "correction": "He can swim very well.",
+              "explanation": "After can, use the base verb - no to."
+            },
+            {
+              "id": 7,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "I think our team will win the match.",
+              "isCorrect": true,
+              "correctAnswer": "I think our team will win the match.",
+              "correction": null,
+              "explanation": "will + base verb makes predictions."
+            },
+            {
+              "id": 8,
+              "type": "correct_incorrect",
+              "prompt": "Choose the correct sentence.",
+              "text": "We musts finish the project today.",
+              "isCorrect": false,
+              "correctAnswer": "We must finish the project today.",
+              "correction": "We must finish the project today.",
+              "explanation": "Modal verbs never take -s."
             }
           ]
         },
@@ -1133,26 +1404,6 @@
               "id": 1,
               "type": "correct_incorrect",
               "prompt": "Hit the sentence with a mistake.",
-              "text": "You must wear a seatbelt.",
-              "isCorrect": true,
-              "correctAnswer": "You must wear a seatbelt.",
-              "correction": null,
-              "explanation": "must + base verb is correct."
-            },
-            {
-              "id": 2,
-              "type": "correct_incorrect",
-              "prompt": "Hit the sentence with a mistake.",
-              "text": "He can to swim very well.",
-              "isCorrect": false,
-              "correctAnswer": "He can swim very well.",
-              "correction": "He can swim very well.",
-              "explanation": "After can, use the base verb - no to."
-            },
-            {
-              "id": 3,
-              "type": "correct_incorrect",
-              "prompt": "Hit the sentence with a mistake.",
               "text": "You should study before the exam.",
               "isCorrect": true,
               "correctAnswer": "You should study before the exam.",
@@ -1160,34 +1411,74 @@
               "explanation": "should + base verb gives advice."
             },
             {
+              "id": 2,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "She shoulds apologize to her friend.",
+              "isCorrect": false,
+              "correctAnswer": "She should apologize to her friend.",
+              "correction": "She should apologize to her friend.",
+              "explanation": "Modal verbs never take -s."
+            },
+            {
+              "id": 3,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "They are going to visit us on Sunday.",
+              "isCorrect": true,
+              "correctAnswer": "They are going to visit us on Sunday.",
+              "correction": null,
+              "explanation": "be going to + base verb plans the future."
+            },
+            {
               "id": 4,
               "type": "correct_incorrect",
               "prompt": "Hit the sentence with a mistake.",
-              "text": "We musts finish this today.",
+              "text": "He wills arrive tomorrow evening.",
               "isCorrect": false,
-              "correctAnswer": "We must finish this today.",
-              "correction": "We must finish this today.",
-              "explanation": "Modal verbs never take -s."
+              "correctAnswer": "He will arrive tomorrow evening.",
+              "correction": "He will arrive tomorrow evening.",
+              "explanation": "After will, the verb never takes -s."
             },
             {
               "id": 5,
               "type": "correct_incorrect",
               "prompt": "Hit the sentence with a mistake.",
-              "text": "You can borrow my pen.",
+              "text": "You can borrow my dictionary for the test.",
               "isCorrect": true,
-              "correctAnswer": "You can borrow my pen.",
+              "correctAnswer": "You can borrow my dictionary for the test.",
               "correction": null,
-              "explanation": "can + base verb is correct."
+              "explanation": "can + base verb asks permission."
             },
             {
               "id": 6,
               "type": "correct_incorrect",
               "prompt": "Hit the sentence with a mistake.",
-              "text": "She shoulds apologize.",
+              "text": "We can to meet at six o'clock.",
               "isCorrect": false,
-              "correctAnswer": "She should apologize.",
-              "correction": "She should apologize.",
-              "explanation": "Modal verbs never take -s."
+              "correctAnswer": "We can meet at six o'clock.",
+              "correction": "We can meet at six o'clock.",
+              "explanation": "After can, use the base verb - no to."
+            },
+            {
+              "id": 7,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "She is going to start a new job soon.",
+              "isCorrect": true,
+              "correctAnswer": "She is going to start a new job soon.",
+              "correction": null,
+              "explanation": "be going to + base verb plans the future."
+            },
+            {
+              "id": 8,
+              "type": "correct_incorrect",
+              "prompt": "Hit the sentence with a mistake.",
+              "text": "You should to rest before the trip.",
+              "isCorrect": false,
+              "correctAnswer": "You should rest before the trip.",
+              "correction": "You should rest before the trip.",
+              "explanation": "After should, use the base verb - no to."
             }
           ]
         },
@@ -1216,7 +1507,8 @@
               "options": [
                 "will",
                 "wills",
-                "want"
+                "wants",
+                "is"
               ],
               "correctAnswer": "will",
               "correction": "I think it will rain tonight.",
@@ -1234,43 +1526,46 @@
             },
             {
               "id": 3,
-              "type": "multiple_choice",
-              "prompt": "Choose the correct sentence.",
-              "options": [
-                "She can speak three languages.",
-                "She cans speak three languages.",
-                "She can to speak three languages."
-              ],
-              "correctAnswer": "She can speak three languages.",
-              "correction": "She can speak three languages.",
-              "explanation": "can + base verb shows ability."
-            },
-            {
-              "id": 4,
               "type": "missing_word",
               "prompt": "Choose the missing word.",
               "text": "We ___ hurry or we will be late.",
               "options": [
                 "must",
                 "musts",
-                "musting"
+                "musting",
+                "must to"
               ],
               "correctAnswer": "must",
               "correction": "We must hurry or we will be late.",
               "explanation": "must + base verb shows necessity."
             },
             {
+              "id": 4,
+              "type": "multiple_choice",
+              "prompt": "Choose the correct sentence.",
+              "options": [
+                "She can speak three languages.",
+                "She cans speak three languages.",
+                "She can to speak three languages.",
+                "She can speaking three languages."
+              ],
+              "correctAnswer": "She can speak three languages.",
+              "correction": "She can speak three languages.",
+              "explanation": "can + base verb shows ability."
+            },
+            {
               "id": 5,
               "type": "missing_word",
               "prompt": "Choose the missing word.",
-              "text": "You ___ drink water every day.",
+              "text": "You ___ drink more water every day.",
               "options": [
                 "should",
                 "shoulds",
-                "shall"
+                "shall to",
+                "shoulding"
               ],
               "correctAnswer": "should",
-              "correction": "You should drink water every day.",
+              "correction": "You should drink more water every day.",
               "explanation": "should + base verb gives advice."
             },
             {
@@ -1282,6 +1577,35 @@
               "correctAnswer": "They can help us tomorrow.",
               "correction": "They can help us tomorrow.",
               "explanation": "After can, use the base verb - no to."
+            },
+            {
+              "id": 7,
+              "type": "multiple_choice",
+              "prompt": "Choose the correct sentence.",
+              "options": [
+                "We are going to move house.",
+                "We are go to move house.",
+                "We is going to move house.",
+                "We going to move house."
+              ],
+              "correctAnswer": "We are going to move house.",
+              "correction": "We are going to move house.",
+              "explanation": "be going to + base verb plans the future."
+            },
+            {
+              "id": 8,
+              "type": "missing_word",
+              "prompt": "Choose the missing word.",
+              "text": "I ___ help you with those bags.",
+              "options": [
+                "will",
+                "wills",
+                "will to",
+                "wanting"
+              ],
+              "correctAnswer": "will",
+              "correction": "I will help you with those bags.",
+              "explanation": "will + base verb makes offers."
             }
           ]
         }

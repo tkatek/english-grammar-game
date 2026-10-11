@@ -257,6 +257,8 @@
     challenge: null,        // challengeStarted payload
     question: null,         // current public question
     questionLocked: false,
+    questionIntro: null,   // active center-stage read beat (startQuestionIntro)
+    lastWaveTexts: [],     // previous wave's sentences (avoid bubble repeats)
     marked: null,           // { learnerValue, correctValue } for resize re-render
     pendingResult: null,
     gameCompleted: false,
@@ -1150,7 +1152,96 @@
     yard.classList.toggle("whack--tall", tall);
   }
 
-  function renderQuestion(payload) {
+  /* ----- Question read beat ---------------------------------------------
+   * Every question first takes CENTER STAGE for ~2s so the learner reads it,
+   * then the card docks to the top and only then the animals come out.
+   * Reading time never eats the countdown: the engine is silently paused
+   * (no pause menu) until the card starts docking back up.
+   * --------------------------------------------------------------------- */
+  const QUESTION_INTRO_MS = {
+    FLY: 340,   // top -> center
+    HOLD: 1660, // reading hold (with the fly-in the card owns center ~2s)
+    DOCK: 340,  // center -> top, then the board spawns
+  };
+
+  function startQuestionIntro(beginPlay) {
+    clearQuestionIntro();
+    const state = { timers: [], beginPlay, pausedByIntro: false };
+    ctx.questionIntro = state;
+
+    // Silent reading pause. pausedByIntro must be set BEFORE pause(): the
+    // PAUSED handler runs synchronously inside it and uses the flag to skip
+    // the pause menu. It stays true until engine.resume() has really run.
+    if (engine.status === "playing") {
+      state.pausedByIntro = true;
+      if (!engine.pause().paused) state.pausedByIntro = false;
+    }
+
+    const instr = $("#instruction");
+    instr.classList.remove("is-center");
+    instr.style.transform = "";
+    void instr.offsetWidth; // guarantee the flight animates on every question
+    instr.classList.add("is-center");
+
+    // Stacked phone/tablet layout: the card sits in normal flow there, so
+    // top/left cannot move it — measure the vector to the field's center and
+    // fly it with a transform instead. (Desktop centers via the .is-center
+    // CSS rule alone; the inline transform is never set there.)
+    if (getComputedStyle(instr).position === "static") {
+      const r = instr.getBoundingClientRect();
+      const f = document.getElementById("whack").getBoundingClientRect();
+      const dx = Math.round(f.left + f.width / 2 - (r.left + r.width / 2));
+      const dy = Math.round(f.top + f.height / 2 - (r.top + r.height / 2));
+      instr.style.transform = "translate(" + dx + "px," + dy + "px) scale(1.04)";
+    }
+
+    state.timers.push(setTimeout(() => {
+      instr.classList.remove("is-center"); // fly back to the top
+      instr.style.transform = "";
+      resumeFromIntro(state);
+      state.timers.push(setTimeout(() => {
+        if (ctx.questionIntro === state) ctx.questionIntro = null;
+        state.beginPlay();
+      }, QUESTION_INTRO_MS.DOCK));
+    }, QUESTION_INTRO_MS.FLY + QUESTION_INTRO_MS.HOLD));
+  }
+
+  function resumeFromIntro(state) {
+    if (!state.pausedByIntro) return;
+    if (document.hidden) {
+      // Tab hidden mid-read: keep the clock frozen until the player returns.
+      const onVisible = () => {
+        if (document.hidden) return;
+        document.removeEventListener("visibilitychange", onVisible);
+        state.onVisible = null;
+        if (state.pausedByIntro) { state.pausedByIntro = false; engine.resume(); }
+      };
+      state.onVisible = onVisible;
+      document.addEventListener("visibilitychange", onVisible);
+      return;
+    }
+    state.pausedByIntro = false;
+    engine.resume();
+  }
+
+  function clearQuestionIntro() {
+    const state = ctx.questionIntro;
+    if (!state) return;
+    ctx.questionIntro = null;
+    state.timers.forEach((t) => clearTimeout(t));
+    if (state.onVisible) {
+      document.removeEventListener("visibilitychange", state.onVisible);
+      state.onVisible = null;
+    }
+    $("#instruction").classList.remove("is-center");
+    $("#instruction").style.transform = "";
+    if (state.pausedByIntro) {
+      state.pausedByIntro = false;
+      engine.resume();
+    }
+  }
+
+  function renderQuestion(payload, opts) {
     ctx.question = payload.question;
     ctx.questionLocked = false;
     ctx.marked = null;
@@ -1170,6 +1261,8 @@
     const setText = (sel, value) => { $(sel).textContent = value; };
     const setShown = (sel, shown) => { $(sel).hidden = !shown; };
 
+    // Question texts render immediately so the card reads correctly while it
+    // holds center stage; the board itself only spawns once the card docks.
     if (q.type === "correct_incorrect") {
       // Whack-a-mole WAVE: the engine's sentence + decoys from the same
       // level pop out of different holes at once. Hitting a sentence claims
@@ -1181,22 +1274,6 @@
         : "Whack the animal with the sentence that has a MISTAKE");
       setShown("#instruction-hint", true);
       setShown("#instruction-sentence", false);
-
-      const wave = buildSentenceWave(q, tier);
-      if (wave) {
-        spawnWave(yard, tier, wave);
-      } else {
-        // Fallback (no decoy data): single mascot + Correct/Mistake paddles.
-        const layout = HOLE_LAYOUTS[tier];
-        const pool = layout.bottom.concat(layout.top);
-        let hole = pool[Math.floor(Math.random() * pool.length)];
-        if (ctx.lastHoleKey && hole.x === ctx.lastHoleKey.x && hole.y === ctx.lastHoleKey.y) {
-          hole = pool[(pool.indexOf(hole) + 1) % pool.length];
-        }
-        ctx.lastHoleKey = hole;
-        spawnWave(yard, tier, [{ text: q.text || "", claim: ctx.tapMeansCorrect }], true);
-        binary.hidden = false;
-      }
     } else if (q.type === "missing_word") {
       setText("#instruction-text", "Tap the animal holding the missing word");
       setShown("#instruction-hint", false);
@@ -1204,24 +1281,55 @@
       clearNode(holder);
       holder.appendChild(renderSentenceWithBlank(q.text || ""));
       setShown("#instruction-sentence", true);
-      spawnOptionMoles(yard, tier, q);
     } else if (q.type === "multiple_choice") {
       setText("#instruction-text", q.prompt || "Tap the animal with the correct sentence");
       setShown("#instruction-hint", false);
       setShown("#instruction-sentence", false);
-      spawnOptionMoles(yard, tier, q);
     } else {
       // Unknown format: degrade gracefully instead of a blank field.
       setText("#instruction-text", q.prompt || "Choose the correct answer");
       setShown("#instruction-hint", false);
       setShown("#instruction-sentence", false);
-      spawnOptionMoles(yard, tier, { options: (Array.isArray(q.options) ? q.options : ["true", "false"]) });
     }
 
     setProgress(payload.answeredCount, payload.totalQuestions, payload.questionNumber);
 
-    // New wave is live: the hammer may swing again.
-    HammerCursor.arm();
+    // Board build — deferred until the read beat ends (startQuestionIntro).
+    const beginPlay = () => {
+      if (ctx.screen !== "game" || ctx.question !== q) return; // moved on mid-flight
+      if (q.type === "correct_incorrect") {
+        const wave = buildSentenceWave(q, tier);
+        if (wave) {
+          spawnWave(yard, tier, wave);
+        } else {
+          // Fallback (no decoy data): single mascot + Correct/Mistake paddles.
+          const layout = HOLE_LAYOUTS[tier];
+          const pool = layout.bottom.concat(layout.top);
+          let hole = pool[Math.floor(Math.random() * pool.length)];
+          if (ctx.lastHoleKey && hole.x === ctx.lastHoleKey.x && hole.y === ctx.lastHoleKey.y) {
+            hole = pool[(pool.indexOf(hole) + 1) % pool.length];
+          }
+          ctx.lastHoleKey = hole;
+          spawnWave(yard, tier, [{ text: q.text || "", claim: ctx.tapMeansCorrect }], true);
+          binary.hidden = false;
+        }
+      } else if (q.type === "missing_word" || q.type === "multiple_choice") {
+        spawnOptionMoles(yard, tier, q);
+      } else {
+        spawnOptionMoles(yard, tier, { options: (Array.isArray(q.options) ? q.options : ["true", "false"]) });
+      }
+      // New wave is live: the hammer may swing again.
+      HammerCursor.arm();
+    };
+
+    // Center-stage read beat; pure re-layouts of the SAME question (resize)
+    // skip it and put the board straight back out.
+    if (opts && opts.skipIntro) {
+      clearQuestionIntro();
+      beginPlay();
+    } else {
+      startQuestionIntro(beginPlay);
+    }
   }
 
   /* ----- Sentence waves (UI-layer grouping; engine validates answers) -----
@@ -1244,7 +1352,13 @@
     if (!src) return null;
 
     const C = ctx.tapMeansCorrect; // claim the instruction asks the learner to make
-    const others = shuffleList(pool.filter((p) => p.text !== src.text));
+    // Prefer sentences the previous wave did NOT show, so back-to-back waves
+    // never recycle the same bubbles. The pool is far larger than a wave, so
+    // fresh picks are almost always available; the full list is the fallback.
+    const prevWave = ctx.lastWaveTexts || [];
+    const othersAll = pool.filter((p) => p.text !== src.text);
+    const fresh = othersAll.filter((p) => !prevWave.includes(p.text));
+    const others = shuffleList(fresh.length >= 4 ? fresh : othersAll);
     const decoys = [];
     let srcSatisfies;
     if (src.isCorrect === C) {
@@ -1283,19 +1397,17 @@
         .concat(decoys.slice(1, Math.max(1, wanted)).map((d) => toItem(d, false)))
         .slice(0, Math.max(1, wanted));
     }
-    return shuffleList(group);
+    const wave = shuffleList(group);
+    ctx.lastWaveTexts = wave.map((w) => w.text);
+    return wave;
   }
 
   function waveTargetCount(tier, longestOwn, decoyTexts) {
-    const longest = Math.max(longestOwn ? longestOwn.length : 0, ...decoyTexts.map((t) => t.length));
-    // Ultra-short fields (landscape phones) have no vertical room for two
-    // stacked targets between the instruction and feedback zones.
-    const field = document.querySelector('#whack');
-    if (field && field.clientHeight > 0 && field.clientHeight < 320) return 1;
-    if (tier === 'mobile') return longest > 36 ? 1 : 2;
-    if (tier === 'tablet') return longest > 40 ? 2 : (Math.random() < 0.5 ? 2 : 3);
-    const r = Math.random();
-    return r < 0.18 ? 2 : r < 0.85 ? 3 : 4;
+    // Teacher's rule: every wave fields AT LEAST three animals on every
+    // device — two animals is only a 50/50 guess. Wide desktop fields
+    // sometimes host a fourth for extra challenge.
+    if (tier === "desktop") return Math.random() < 0.3 ? 4 : 3;
+    return 3;
   }
 
   // Pick holes whose estimated mascot + bubble boxes never collide and stay
@@ -1312,12 +1424,32 @@
     const relaxTop = !!(opts && opts.relaxTop);
     const vw = window.innerWidth;
     const short = fh < 420;
+    const fanYard = document.getElementById("yard");
+    if (fanYard) fanYard.classList.remove("yard--fan"); // re-added by the fan below
     const fontPx = clampNum(15, 1.25 * vw / 100, 22);
     const capW = short ? Math.min(320, 40 * vw / 100) : (tier === 'mobile' ? 38 * vw / 100 : Math.min(320, 27 * vw / 100));
+    // Sentence bubbles must fit side by side on the PAINTED hole rows: cap
+    // them just under the tightest painted same-row gap so a whole row of
+    // animals can stand on the painted holes without their bubbles touching.
+    // (Word chips stay at capW — they fan instead when holes run out.)
+    let cap = capW;
+    if (!compact) {
+      const rowGap = (holes) => {
+        const xs = holes.map((h) => h.x).sort((a, b) => a - b);
+        let g = Infinity;
+        for (let i = 1; i < xs.length; i++) g = Math.min(g, xs[i] - xs[i - 1]);
+        return g;
+      };
+      const minGapPct = Math.min(rowGap(layout.top), rowGap(layout.bottom));
+      cap = Math.max(compact ? 64 : 92, Math.min(capW, (minGapPct / 100) * fw - 10));
+      // The RENDERED bubbles get the same cap (CSS custom property), so a
+      // painted row of animals never touches even after text wraps.
+      if (fanYard) fanYard.style.setProperty("--sentence-bubble-max", Math.round(cap) + "px");
+    }
     // estimate each sentence's real rendered bubble width from its text
     const estW = texts && texts.length
-      ? texts.map((t) => Math.max(compact ? 64 : 92, Math.min(capW, String(t).length * fontPx * 0.52 + (compact ? 18 : 26))))
-      : Array.from({ length: count }, () => capW);
+      ? texts.map((t) => Math.max(compact ? 64 : 92, Math.min(cap, String(t).length * fontPx * 0.52 + (compact ? 18 : 26))))
+      : Array.from({ length: count }, () => cap);
     const bubbleH = compact ? 46 : (short ? 58 : (tier === 'mobile' ? 88 : 78));
     // Match the RENDERED CSS sizes (.mole width clamps) so collision checks
     // never underestimate; word chips render smaller via .mole--word.
@@ -1403,26 +1535,37 @@
       if (chosen.length < count) { remember(chosen); continue; }
       const sig = chosen.map((c) => c.hole.x + '/' + c.hole.y).sort().join('|');
       if (sig === ctx.lastWaveSig && attempt < 12) { remember(chosen); continue; }
-      if (sig === ctx.lastWaveSig && count > 1) {
-        // geometrically forced repeat (e.g. only one valid spread on a short
-        // field): try one target fewer for a visibly different pattern
+      if (sig === ctx.lastWaveSig && count > 3) {
+        // geometrically forced repeat: try one target fewer for a visibly
+        // different pattern — but never drop below the three-animal minimum
         const smaller = chosen.slice(0, count - 1);
         if (smaller.length) return commit(smaller);
       }
       return commit(chosen);
     }
+    // Word-option chips only: ALL options must stay selectable (dropping one
+    // by position could drop the engine's correct answer). When the painted
+    // holes cannot host them all, fan the chips across one ground line.
+    // SENTENCE waves never fan: every sentence animal must stand on a painted
+    // hole from the background artwork — when the holes cannot host three
+    // (the phone background paints four holes in a 2x2 grid), the wave uses
+    // as many painted holes as fit cleanly.
     if (compact && count > 1 && (!best || best.length < count)) {
-      // Word options that cannot all fit the painted holes (e.g. phones, where
-      // a bottom-row dog's bubble always reaches into the top-row dog's box):
-      // fan them across a SINGLE ground line so every option stays selectable —
-      // dropping one by position could drop the engine's correct answer and
-      // leave the wrong-answer reveal with no target.
       const anchor = boxesOf(layout.bottom[0] || layout.top[0], capW);
-      const y = anchor ? anchor.pos.y : 65;
+      // Shared width budget: each bubble gets an equal slice of the field so
+      // fanned neighbours never touch. The rendered bubbles are capped to the
+      // same number through the --fan-bubble-max custom property.
+      const budget = Math.max(compact ? 64 : 92, Math.min(capW, (fw - 24) / count - 8));
+      // Push the ground line down until the whole stack (bubble + mascot)
+      // clears the instruction card, but never past the feedback zone.
+      const stack = 12 + bubbleH + moleW * 1.04;
+      const maxY = (fh - (short ? 26 : 44)) / fh * 100;
+      const minTopY = (topLimit + stack) / fh * 100;
+      const y = Math.max(anchor ? anchor.pos.y : 65, Math.min(minTopY, maxY));
       const fan = [];
       for (let i = 0; i < count; i++) {
         const x = count === 1 ? 50 : 18 + 64 * i / (count - 1); // 18%..82% of the field
-        const w = widths[i] || capW;
+        const w = budget;
         const cx = x / 100 * fw;
         const cy = y / 100 * fh;
         const moleTop = cy - moleW * 1.04;
@@ -1433,13 +1576,17 @@
           bubble: { l: cx - w / 2, t: moleTop - 12 - bubbleH, r: cx + w / 2, b: moleTop },
         });
       }
+      if (fanYard) {
+        fanYard.classList.add("yard--fan");
+        fanYard.style.setProperty("--fan-bubble-max", Math.round(budget) + "px");
+      }
       ctx.lastWaveSig = "fan" + count;
       ctx.lastHoleKey = fan[0].hole;
       return fan;
     }
     if (best) return commit(best);
     // Last resort: the spread top row.
-    const fallback = layout.top.slice(0, count).map((h, i) => boxesOf(h, widths[i] || capW)).filter(Boolean);
+    const fallback = layout.top.slice(0, count).map((h, i) => boxesOf(h, widths[i] || cap)).filter(Boolean);
     if (!fallback.length) return commit(best || []);
     ctx.lastWaveSig = fallback.map((c) => c.hole.x + '/' + c.hole.y).sort().join('|');
     ctx.lastHoleKey = fallback[0].hole;
@@ -1860,6 +2007,18 @@
     return next ? "Next: " + next.challengeTitle : "Continue";
   }
 
+  /* Classroom flow: no landing pages — the next unfinished challenge starts
+   * immediately (on boot, after a pass, and after a level win). The intro
+   * screen and home only appear as fallbacks when there is nothing to play. */
+  function startNextActivity() {
+    const next = engine.getNextUnlockedActivity();
+    if (next) {
+      const start = engine.startChallenge(next.levelId, next.challengeId);
+      if (start && start.started) return;
+    }
+    renderHome();
+  }
+
   function continueAfterPass(result) {
     Sound.play("click");
     // Finishing all LOADED content is only full-game completion when the
@@ -1873,9 +2032,7 @@
       renderLevelComplete(result, ctx.gameCompleted ? "partial" : "level");
       return;
     }
-    const next = engine.getNextUnlockedActivity();
-    if (next) openIntro(next.levelId, next.challengeId);
-    else renderMap();
+    startNextActivity();
   }
 
   /* --------------------------- review screen --------------------------- */
@@ -1968,7 +2125,7 @@
         if (fullGame) { renderHome(); return; }
         if (!hasNextLevel) { renderMap(); return; }
         const next = engine.getNextUnlockedActivity();
-        if (next) openIntro(next.levelId, next.challengeId);
+        if (next) { engine.startChallenge(next.levelId, next.challengeId); }
         else openLevel(result.levelId + 1);
       },
     }));
@@ -1984,7 +2141,7 @@
   /* ============================ engine wiring =========================== */
 
   function wireEngine() {
-    engine.on(E.GAME_READY, () => { renderHome(); });
+    engine.on(E.GAME_READY, () => { startNextActivity(); });
 
     engine.on(E.ERROR, (payload) => {
       if (engine.status === "error") {
@@ -2087,6 +2244,9 @@
 
     engine.on(E.PAUSED, () => {
       HammerCursor.sync(); // paused: back to a normal cursor over the arena
+      // Silent reading pause (question intro beat): no menu, play continues
+      // as soon as the card docks.
+      if (ctx.questionIntro && ctx.questionIntro.pausedByIntro) return;
       if (ctx.screen === "game" && ctx.modalStack[ctx.modalStack.length - 1] !== "pause") {
         openModal("pause");
       }
@@ -2208,6 +2368,13 @@
     });
 
     $("#hud-pause").addEventListener("click", () => {
+      // During the reading beat the engine is already (silently) paused:
+      // end the beat so the board is out, then open the pause menu normally.
+      if (ctx.questionIntro) {
+        const intro = ctx.questionIntro;
+        clearQuestionIntro();
+        intro.beginPlay();
+      }
       const outcome = engine.pause();
       if (!outcome.paused) toast(outcome.reason || "Cannot pause now", "pause");
     });
@@ -2340,14 +2507,33 @@
       // question visible and unanswered: re-render for the new field tier
       const state = engine.getPublicState();
       if (state.question && !state.question.locked) {
+        // During the read beat the yard is empty and the board will spawn
+        // with fresh measurements the moment the card docks — re-rendering
+        // now would only cut the reading time short. Just re-aim the card.
+        if (ctx.questionIntro) { refreshIntroFlight(); return; }
         renderQuestion({
           question: engine.getCurrentQuestion(),
           questionNumber: state.question.number,
           totalQuestions: state.question.total,
           answeredCount: state.answeredCount,
-        });
+        }, { skipIntro: true }); // same question re-laid out: no new read beat
       }
     }
+  }
+
+  // Window resized mid-read: re-measure the stacked-layout flight so the
+  // card stays dead-center on the new field size. (The desktop layout
+  // re-centers through CSS alone — nothing to do there.)
+  function refreshIntroFlight() {
+    const instr = $("#instruction");
+    if (!instr.classList.contains("is-center")) return;
+    instr.style.transform = "";
+    if (getComputedStyle(instr).position !== "static") return;
+    const r = instr.getBoundingClientRect();
+    const f = document.getElementById("whack").getBoundingClientRect();
+    const dx = Math.round(f.left + f.width / 2 - (r.left + r.width / 2));
+    const dy = Math.round(f.top + f.height / 2 - (r.top + r.height / 2));
+    instr.style.transform = "translate(" + dx + "px," + dy + "px) scale(1.04)";
   }
 
   function preload() {
@@ -2369,8 +2555,11 @@
     showScreen("loading");
     $("#loading-status").textContent = "Loading Grammar Quest\u2026";
     try {
+      // Sentence pools load in PARALLEL with the engine: by the time the
+      // first question's read beat ends, the wave builder always has decoys.
+      const poolsReady = loadSentencePools();
       await engine.init({ url: "data/questions.json" });
-      loadSentencePools();
+      await poolsReady;
     } catch (err) {
       console.error("[GrammarQuest UI] init failed:", err);
       $("#error-message").textContent = "We couldn't load the game data. " +
@@ -2393,9 +2582,15 @@
       { text: "We play tennis on Fridays.", isCorrect: true },
       { text: "Anna watch the news every evening.", isCorrect: false },
       { text: "The shop opens at nine.", isCorrect: true },
-      { text: "They doesn't live in Madrid.", isCorrect: false },
+      { text: "They doesn't live in this town.", isCorrect: false },
       { text: "I like grammar games.", isCorrect: true },
       { text: "My mum cook dinner every day.", isCorrect: false },
+      { text: "Sarah reads a book every night.", isCorrect: true },
+      { text: "The baby cry a lot.", isCorrect: false },
+      { text: "We walk to the park together.", isCorrect: true },
+      { text: "He go to work by train.", isCorrect: false },
+      { text: "My friends live next door.", isCorrect: true },
+      { text: "She walk to school alone.", isCorrect: false },
     ],
     2: [
       { text: "The baby is crying now.", isCorrect: true },
@@ -2406,6 +2601,12 @@
       { text: "She is swim in the pool.", isCorrect: false },
       { text: "The students are writing a test.", isCorrect: true },
       { text: "You is standing on my foot.", isCorrect: false },
+      { text: "He is fixing his bike at the moment.", isCorrect: true },
+      { text: "They is learning to dance.", isCorrect: false },
+      { text: "My mum is talking on the phone.", isCorrect: true },
+      { text: "I are drawing a picture.", isCorrect: false },
+      { text: "The ducks are swimming in the lake.", isCorrect: true },
+      { text: "We is waiting for the film.", isCorrect: false },
     ],
     3: [
       { text: "We visited Rome last summer.", isCorrect: true },
@@ -2413,9 +2614,15 @@
       { text: "They flew to Paris on Monday.", isCorrect: true },
       { text: "I falled off my bike.", isCorrect: false },
       { text: "She made a cake this morning.", isCorrect: true },
-      { text: "We didn't went to the beach.", isCorrect: false },
-      { text: "The concert finished at ten.", isCorrect: true },
       { text: "He buyed a ticket yesterday.", isCorrect: false },
+      { text: "The show ended at midnight.", isCorrect: true },
+      { text: "She drinked all the juice.", isCorrect: false },
+      { text: "You told me a funny story.", isCorrect: true },
+      { text: "We catched the early train.", isCorrect: false },
+      { text: "He lost his keys yesterday.", isCorrect: true },
+      { text: "They runned fast in the race.", isCorrect: false },
+      { text: "I found ten euros on the street.", isCorrect: true },
+      { text: "The band played all night.", isCorrect: true },
     ],
     4: [
       { text: "This road is narrower than that one.", isCorrect: true },
@@ -2426,22 +2633,34 @@
       { text: "This test is more harder than the last.", isCorrect: false },
       { text: "The Nile is longer than the Thames.", isCorrect: true },
       { text: "He is the most tallest in the team.", isCorrect: false },
+      { text: "A cheetah is faster than a lion.", isCorrect: true },
+      { text: "This bag is more heavy than it looks.", isCorrect: false },
+      { text: "Her flat is smaller than mine.", isCorrect: true },
+      { text: "That was the most funniest film ever.", isCorrect: false },
+      { text: "The blue whale is the biggest animal on Earth.", isCorrect: true },
+      { text: "My results are more good than last year.", isCorrect: false },
     ],
     5: [
       { text: "I will help you with your bags.", isCorrect: true },
       { text: "We can to meet at six.", isCorrect: false },
-      { text: "She is going to start a new job.", isCorrect: true },
+      { text: "They are going to build a new school.", isCorrect: true },
       { text: "You shoulds tell the teacher.", isCorrect: false },
       { text: "They must sign the form today.", isCorrect: true },
       { text: "He wills arrive tomorrow.", isCorrect: false },
       { text: "You can keep the change.", isCorrect: true },
       { text: "I musts finish this now.", isCorrect: false },
+      { text: "We will remember this trip forever.", isCorrect: true },
+      { text: "She can to drive a bus.", isCorrect: false },
+      { text: "The train will arrive at six o'clock.", isCorrect: true },
+      { text: "You must to wear a helmet.", isCorrect: false },
+      { text: "I am going to call her tonight.", isCorrect: true },
+      { text: "They should to bring their books.", isCorrect: false },
     ],
   };
 
   function loadSentencePools() {
     ctx.sentencePool = {};
-    fetch("data/questions.json")
+    return fetch("data/questions.json")
       .then((res) => res.json())
       .then((data) => {
         (data.levels || []).forEach((level) => {

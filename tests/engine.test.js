@@ -301,7 +301,20 @@ function fakeLocalStorage() {
   await test("question options stay stable during the question's lifetime", async () => {
     const engine = await engineReadyFor(3);
     engine.startChallenge(1, 3);
-    const q1 = engine.getCurrentQuestion();
+    // The mixed final test also deals plain sentence questions (no options
+    // array). Step forward until an option question is live — the pool holds
+    // at most three sentence questions, so one option question always deals.
+    let q1 = engine.getCurrentQuestion();
+    let guard = 0;
+    while ((!q1 || !Array.isArray(q1.options) || !q1.options.length) && guard++ < 10 && engine.status === "playing") {
+      const s = srcQuestion(jsonData, 1, 3, q1.id);
+      engine.submitAnswer(s.type === "correct_incorrect" ? s.isCorrect : s.correctAnswer);
+      if (engine.status !== "playing") break;
+      engine.nextQuestion();
+      q1 = engine.getCurrentQuestion();
+    }
+    check("an option question is live", !!q1 && Array.isArray(q1.options) && q1.options.length > 0, q1 && q1.id);
+    if (!q1 || !Array.isArray(q1.options)) return;
     const q1again = engine.getCurrentQuestion();
     check("same option order on repeat reads", JSON.stringify(q1.options) === JSON.stringify(q1again.options));
     const src = srcQuestion(jsonData, 1, 3, q1.id);
@@ -571,7 +584,11 @@ function fakeLocalStorage() {
     const secondIds = secondEngine._session.questions.map((q) => String(q.id));
     const overlap = secondIds.filter((id) => firstIds.includes(id));
     check("both runs use the configured four questions", firstIds.length === 4 && secondIds.length === 4, { firstIds, secondIds });
-    check("only the unavoidable two questions repeat from a six-question bank", overlap.length === 2, { firstIds, secondIds, overlap });
+    // With an 8-question bank two 4-draws can be fully disjoint; the engine's
+    // remembered rotation must never repeat more than pigeonhole forces.
+    const bank = jsonData.levels[0].challenges[0].questions.length;
+    const unavoidable = Math.max(0, firstIds.length + secondIds.length - bank);
+    check("replays repeat no more than the bank forces", overlap.length <= unavoidable, { bank, firstIds, secondIds, overlap });
     check("no duplicate question appears inside one run", new Set(secondIds).size === secondIds.length, secondIds);
   });
 
