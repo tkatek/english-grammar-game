@@ -152,11 +152,10 @@
     return node;
   }
 
-  const FEEDBACK_DELAY = { correct: 1100 };
-  // Wrong-answer reveal beat: the red hit lands at the hammer's impact frame,
-  // the green correct-target reveal follows ~140ms later, and the correction
-  // card waits until that reveal has settled. Wrong answers never auto-
-  // advance — the learner presses Next after reading the correction.
+  // Answer reveal beat: the hit lands at the hammer's impact frame, the
+  // green correct-target reveal follows ~140ms later, and the verdict card
+  // waits until that reveal has settled. NOTHING auto-advances — correct
+  // and wrong alike, the learner presses Next after reading the card.
   const REVEAL_DELAY = { correctTarget: 140, feedbackCard: 420, failScreen: 2400 };
   const STREAK_MILESTONES = [3, 5, 10];
   const SETTINGS_KEY = "grammar-quest:ui-settings:v1";
@@ -361,7 +360,7 @@
   // mole, so listening can never submit an answer.
   function makeSpeakBadge(text, delayMs) {
     const badge = el("span", {
-      class: "mole__speak",
+      class: "mole__speak use-default-cursor", // hover = native pointer, hammer hides
       role: "button",
       tabindex: "-1",
       "aria-label": "Listen: " + String(text).slice(0, 40),
@@ -1817,8 +1816,11 @@
     const personality = NEUTRAL_KEYS[(ctx.moleIndex + (options.index || 0)) % NEUTRAL_KEYS.length];
     // Bubble content is built as children (not textContent) so the tap-to-
     // hear badge can live inside the bubble: the text node first, badge last.
+    // use-default-cursor: when speech is available, hovering the WHOLE text
+    // area (not just the little badge) swaps the hammer for the native
+    // pointer — the badge click hears, the text click still whacks.
     const bubble = el("span", {
-      class: "mole__bubble",
+      class: "mole__bubble" + (Speech.supported && options.bubble ? " use-default-cursor" : ""),
       style: "animation-delay:" + (140 + delay) + "ms",
     });
     bubble.appendChild(document.createTextNode(options.bubble));
@@ -2368,20 +2370,15 @@
         Sound.play(feedback.correct ? "correct" : "wrong");
         if (feedback.pointsAwarded > 0) popupScore("+" + feedback.pointsAwarded, feedback.correct);
         if (!feedback.correct) popupScore("−1 ♥", false, true);
-        if (feedback.correct) {
+        // Both verdicts follow the same beat: the hit reaction lands first,
+        // the card appears once the reveal settles, and it STAYS UP until
+        // the learner taps Next — nothing auto-advances, so the result and
+        // the correct sentence stay readable as long as needed.
+        setTimeout(() => {
+          if (ctx.screen !== "game" || !ctx.questionLocked) return;
           showFeedback(feedback);
-          engine.advanceQuestion(FEEDBACK_DELAY.correct);
-        } else {
-          // Wrong answers teach: the green correct-target reveal (scheduled
-          // inside markAnswer) lands first and the correction card follows
-          // once it has settled. Nothing auto-advances — Next is learner-
-          // driven, so the correct sentence stays readable as long as needed.
-          setTimeout(() => {
-            if (ctx.screen !== "game" || !ctx.questionLocked) return;
-            showFeedback(feedback);
-            HammerCursor.sync(); // card is up: back to a normal cursor for Next
-          }, REVEAL_DELAY.feedbackCard);
-        }
+          HammerCursor.sync(); // card is up: back to a normal cursor for Next
+        }, REVEAL_DELAY.feedbackCard);
         HammerCursor.sync(); // during the reveal the hammer stays the cursor
       });
     });
@@ -2555,16 +2552,21 @@
     $("#answer-incorrect").addEventListener("click", () => submitClaim(false));
 
     // Tap-to-hear controls (static instances; the per-animal badges bind
-    // themselves when the wave spawns).
-    $("#instruction-speak").addEventListener("click", function () {
+    // themselves when the wave spawns). use-default-cursor: hovering any
+    // speaker inside the arena swaps the hammer for the native pointer.
+    const instructionSpeak = $("#instruction-speak");
+    instructionSpeak.classList.add("use-default-cursor");
+    instructionSpeak.addEventListener("click", function () {
       speakFromButton(this, ctx.speakText);
     });
-    $("#feedback-speak").addEventListener("click", function () {
+    const feedbackSpeak = $("#feedback-speak");
+    feedbackSpeak.classList.add("use-default-cursor");
+    feedbackSpeak.addEventListener("click", function () {
       speakFromButton(this, ctx.feedbackSpeakText);
     });
     if (!Speech.supported) {
-      $("#instruction-speak").hidden = true;
-      $("#feedback-speak").hidden = true;
+      instructionSpeak.hidden = true;
+      feedbackSpeak.hidden = true;
     }
 
     $("#feedback-continue").addEventListener("click", () => {

@@ -2558,6 +2558,19 @@ body.reduce-motion .instruction { transition: none; }
 
 .mole__speak .icon { width: 14px; height: 14px; pointer-events: none; }
 
+/* The WHOLE speech bubble is a native-cursor zone (use-default-cursor on
+ * .mole__bubble in ui.js): being close to the text swaps the hammer for the
+ * normal pointer. Clicking the text still whacks; clicking the speaker
+ * badge hears. The badge itself also enlarges its own hit ring slightly so
+ * the speaker stays easy to land on. */
+.mole__speak::before {
+  content: "";
+  position: absolute;
+  inset: -6px;               /* small comfort ring, kept clear of the text */
+  border-radius: 50%;
+  clip-path: polygon(50% -30%, 140% -30%, 140% 140%, -30% 140%);
+}
+
 @media (hover: hover) {
   .mole__speak:hover { transform: scale(1.12); filter: brightness(1.15); }
 }
