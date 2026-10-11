@@ -1677,23 +1677,25 @@
       : clampNum(13.5, 1.3 * vw / 100, 21);
 
     // Widest bubble neighbouring painted holes can host side by side —
-    // measured WITHIN a row (holes in different rows share x columns, and
-    // their cross-row gap must not cap same-row bubbles).
+    // measured WITHIN each row. Capping by the tighter row would wrap every
+    // long chip of the wider row onto a second line, and the taller stacks
+    // then cannot clear the painted row gap at any scale.
     const rowGap = (row) => {
       const xs = holes.filter((h) => h.row === row).map((h) => h.cx).sort((a, b) => a - b);
       let g = Infinity;
       for (let i = 1; i < xs.length; i++) g = Math.min(g, xs[i] - xs[i - 1]);
       return g;
     };
-    const minGap = Math.min(rowGap("bottom"), rowGap("top"));
-    const capW = Math.min(compact ? 220 : 320,
-      Math.max(compact ? 70 : 96, (isFinite(minGap) ? minGap : fw * 0.4) - 12));
+    const capFor = (row) => Math.min(compact ? 220 : 320,
+      Math.max(compact ? 70 : 96, (isFinite(rowGap(row)) ? rowGap(row) : fw * 0.4) - 12));
+    const rowCaps = { bottom: capFor("bottom"), top: capFor("top") };
+    const capW = Math.min(rowCaps.bottom, rowCaps.top);
     // text -> estimated bubble box at a given font size. Tracks the RENDERED
     // bubble: 26px horizontal padding, 18px vertical padding + borders, and
     // line wrapping measured against the content width (6px safety).
-    const estBubbleFor = (font) => (t) => {
+    const estBubbleFor = (font, cap) => (t) => {
       const textPx = String(t).length * font * 0.52;
-      const w = Math.max(compact ? 64 : 84, Math.min(capW, textPx + 34));
+      const w = Math.max(compact ? 64 : 84, Math.min(cap || capW, textPx + 34));
       const lines = Math.max(1, Math.ceil(textPx / Math.max(22, w - 32)));
       const h = lines * font * 1.34 + 22;
       return { w, h };
@@ -1707,11 +1709,11 @@
     })();
 
     const maxMoleW = holes[0].w * 1.06; // never wider than the painted opening
-    // Very narrow phone fields (<340px) need deeper shrink steps: four
-    // sentence chips cannot clear the painted row gap at the normal floor.
-    const narrow = fw < 340;
+    // Compact waves get the full shrink ladder: the deep steps only engage
+    // when four long chips cannot clear the painted row gap any other way.
+    const narrow = fw < 380;
     const scales = compact
-      ? (narrow ? [1, 0.9, 0.8, 0.7, 0.62, 0.55, 0.48, 0.42] : [1, 0.9, 0.8, 0.7, 0.62, 0.55])
+      ? [1, 0.9, 0.8, 0.7, 0.62, 0.55, 0.48, 0.42, 0.36, 0.32]
       : [1, 0.9, 0.82, 0.74, 0.66];
     const fontFloor = compact ? (narrow ? 11 : 12) : 12.5;
     const intersects = (a, b) => a.l < b.r - 1 && a.r > b.l + 1 && a.t < b.b - 1 && a.b > b.t + 1;
@@ -1734,8 +1736,10 @@
       // otherwise a full-height bubble keeps colliding with the dog in the
       // hole above. Fonts stop at a readability floor.
       const font = Math.max(fontFloor, fontPx * Math.max(0.85, scale));
-      const est = estBubbleFor(font);
-      const bubbles = widestTextFirst.map((e) => est(e.t));
+      const estB = estBubbleFor(font, rowCaps.bottom);
+      const estT = estBubbleFor(font, rowCaps.top);
+      const bubbles = widestTextFirst.map((e) => estB(e.t));
+      const bubblesTop = widestTextFirst.map((e) => estT(e.t));
       const mkBoxes = (hole, bubble) => {
         const sink = hole.h * HOLE_SINK;
         const footY = hole.cy + sink;           // feet sunk under the rim line
@@ -1778,7 +1782,7 @@
         for (const hole of order) {
           if (chosen.length >= bubbles.length) break;
           const entry = widestTextFirst[chosen.length];
-          const cand = mkBoxes(hole, bubbles[chosen.length]);
+          const cand = mkBoxes(hole, (hole.row === "top" ? bubblesTop : bubbles)[chosen.length]);
           if (!cand) continue;
           let ok = false;
           for (const m of cand.modes) {
