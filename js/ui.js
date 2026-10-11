@@ -322,6 +322,62 @@
     },
   };
 
+  /* --------------------------- pronunciation ----------------------------
+   * Tap-to-hear via the Web Speech API (js/speech.js). Same pattern as
+   * audio: an enhancement layer that can never break gameplay. One global
+   * "which control is speaking" registry keeps every badge in sync —
+   * tapping a new one stops the old one, tapping the speaking one stops. */
+  const Speech = window.GQSpeech || { supported: false, speak: function () {}, stop: function () {} };
+
+  function clearSpeakingMarks() {
+    document.querySelectorAll(".is-speaking").forEach((node) => node.classList.remove("is-speaking"));
+  }
+
+  function speakFromButton(button, text) {
+    if (!Speech.supported || !text) return;
+    const alreadySpeaking = button.classList.contains("is-speaking");
+    clearSpeakingMarks();
+    if (alreadySpeaking) { Speech.stop(); return; } // second tap = stop
+    button.classList.add("is-speaking");
+    Speech.speak(text, function onDone() {
+      if (button.isConnected && button.classList.contains("is-speaking")) {
+        button.classList.remove("is-speaking");
+      }
+    });
+  }
+
+  // Show/hide a static "Listen" control for a given text (no-op + hidden
+  // when speech is unsupported or there is nothing to read).
+  function setSpeechButton(selector, text) {
+    const button = $(selector);
+    if (!button) return;
+    button.classList.remove("is-speaking");
+    button.hidden = !Speech.supported || !String(text || "").trim();
+  }
+
+  // The small speaker badge pinned to a Prairie Dog's speech bubble. A span
+  // (not a <button>) because the mole itself is a button — nested buttons
+  // are invalid HTML. stopPropagation keeps the tap from ever reaching the
+  // mole, so listening can never submit an answer.
+  function makeSpeakBadge(text, delayMs) {
+    const badge = el("span", {
+      class: "mole__speak",
+      role: "button",
+      tabindex: "-1",
+      "aria-label": "Listen: " + String(text).slice(0, 40),
+    }, [icon("volume", 14)]);
+    if (delayMs) badge.style.animationDelay = delayMs + "ms";
+    badge.addEventListener("click", (event) => {
+      event.stopPropagation();
+      event.preventDefault();
+      speakFromButton(badge, text);
+    });
+    badge.addEventListener("pointerdown", (event) => {
+      event.stopPropagation(); // keep the hammer from swinging at the badge
+    });
+    return badge;
+  }
+
   /* --------------------------- screen manager -------------------------- */
 
   const SCREENS = {
@@ -1113,6 +1169,8 @@
     ctx.question = null;
     ctx.questionLocked = false;
     ctx.lastHoleKey = null;
+    Speech.stop(); // never carry a reading across challenge restarts
+    clearSpeakingMarks();
 
     $("#hud-level").textContent = "Level " + payload.levelId;
     $("#hud-challenge").textContent = payload.levelTitle || payload.challengeTitle;
@@ -1328,9 +1386,14 @@
     hideFeedback();
     binary.hidden = true;
     syncFieldArtwork();
+    Speech.stop(); // never talk across questions
+    clearSpeakingMarks();
 
     const setText = (sel, value) => { $(sel).textContent = value; };
     const setShown = (sel, shown) => { $(sel).hidden = !shown; };
+    // The question card offers "Listen" for missing-word sentences (read
+    // with a pause at the blank); every animal carries its own badge.
+    ctx.speakText = q.type === "missing_word" ? (q.text || "") : "";
 
     // Question texts render immediately so the card reads correctly while it
     // holds center stage; the board itself only spawns once the card docks.
@@ -1365,6 +1428,7 @@
     }
 
     setProgress(payload.answeredCount, payload.totalQuestions, payload.questionNumber);
+    setSpeechButton("#instruction-speak", ctx.speakText);
 
     // Board build — deferred until the read beat ends (startQuestionIntro).
     const beginPlay = () => {
@@ -1582,8 +1646,9 @@
     };
     for (let attempt = 0; attempt < 16; attempt++) {
       // Phones: the artwork's two bottom holes make the classic side-by-side
-      // pair (like the reference) — try that row first before mixing rows.
-      const pool = (tier === "mobile" && attempt < 10)
+      // pair (like the reference) — always try that row first. Hole-pattern
+      // variety is not needed there: the sentences shuffle every wave.
+      const pool = tier === "mobile"
         ? layout.bottom
         : layout.top.concat(layout.bottom);
       const order = shuffleList(pool);
@@ -1750,6 +1815,16 @@
     // Cycle personalities (glasses / student / cool) so a wave feels alive;
     // neutral art never reveals anything about the sentence.
     const personality = NEUTRAL_KEYS[(ctx.moleIndex + (options.index || 0)) % NEUTRAL_KEYS.length];
+    // Bubble content is built as children (not textContent) so the tap-to-
+    // hear badge can live inside the bubble: the text node first, badge last.
+    const bubble = el("span", {
+      class: "mole__bubble",
+      style: "animation-delay:" + (140 + delay) + "ms",
+    });
+    bubble.appendChild(document.createTextNode(options.bubble));
+    if (Speech.supported && options.bubble) {
+      bubble.appendChild(makeSpeakBadge(options.bubble, (140 + delay) + 60));
+    }
     const mole = el("button", {
       class: "mole" + (options.word ? " mole--word" : ""),
       // bottom:(100-y)% pins the mascot's feet at the hole centre line
@@ -1764,11 +1839,7 @@
           style: "animation-delay:" + delay + "ms",
         }),
       ]),
-      el("span", {
-        class: "mole__bubble",
-        text: options.bubble,
-        style: "animation-delay:" + (140 + delay) + "ms",
-      }),
+      bubble,
     ]);
     // start the idle breathing once the pop-up finishes (rise = 340ms + delay)
     setTimeout(() => {
@@ -1875,12 +1946,18 @@
         text: feedback.correction || feedback.explanation || "Well done!",
       }));
     }
+    // Hear the corrected/answer sentence: the full correction first (it is
+    // a complete sentence), then the bare answer, then the question text.
+    ctx.feedbackSpeakText = feedback.correction || feedback.correctAnswer || feedback.text || "";
+    setSpeechButton("#feedback-speak", ctx.feedbackSpeakText);
     $("#feedback-continue").textContent = feedback.isFinalQuestion ? "Results" : "Next";
     card.hidden = false;
   }
 
   function hideFeedback() {
     $("#feedback").hidden = true;
+    Speech.stop(); // advancing ends the reading — never talk over the next beat
+    clearSpeakingMarks();
   }
 
   function answerText(value) {
@@ -2147,6 +2224,22 @@
         ]));
         if (entry.explanation) {
           item.appendChild(el("div", { class: "review-item__rule" }, [ document.createTextNode(entry.explanation) ]));
+        }
+        // Hear the corrected sentence for this mistake.
+        const speakText = entry.correction || entry.correctAnswer || entry.text || "";
+        if (Speech.supported && speakText) {
+          const listen = el("button", {
+            class: "speech-btn review-item__speak",
+            type: "button",
+            "aria-label": "Listen: " + String(speakText).slice(0, 40),
+          }, [
+            icon("volume", 16),
+            el("span", { text: "Listen" }),
+          ]);
+          listen.addEventListener("click", function () {
+            speakFromButton(this, speakText);
+          });
+          item.appendChild(listen);
         }
         list.appendChild(item);
       });
@@ -2461,6 +2554,19 @@
     $("#answer-correct").addEventListener("click", () => submitClaim(true));
     $("#answer-incorrect").addEventListener("click", () => submitClaim(false));
 
+    // Tap-to-hear controls (static instances; the per-animal badges bind
+    // themselves when the wave spawns).
+    $("#instruction-speak").addEventListener("click", function () {
+      speakFromButton(this, ctx.speakText);
+    });
+    $("#feedback-speak").addEventListener("click", function () {
+      speakFromButton(this, ctx.feedbackSpeakText);
+    });
+    if (!Speech.supported) {
+      $("#instruction-speak").hidden = true;
+      $("#feedback-speak").hidden = true;
+    }
+
     $("#feedback-continue").addEventListener("click", () => {
       Sound.play("click");
       hideFeedback();
@@ -2683,9 +2789,8 @@
       items.push({ src: Assets.pick(FIELD_BG_URLS.mobile), weight: 8 });
     }
     if (finePointer) items.push({ src: HAMMER_URL, weight: 2 });
-    // The ornate card skins show immediately — warm them with the essentials
-    // so neither ever pops in late.
-    items.push({ src: "assets/images/question-pill.webp", weight: 4 });
+    // The ornate answer-card skin shows on the very first answer — warm it
+    // with the essentials so it never pops in late.
     items.push({ src: "assets/images/feedback-card.webp", weight: 3 });
     return items.filter((it) => !!it.src);
   }
