@@ -1137,13 +1137,18 @@
   }
 
   // Convert an in-image percent position to field percent for a
-  // background-size:cover / center artwork of the given aspect.
+  // background-size:cover artwork of the given aspect.
   function mapHole(pos, tier, fieldW, fieldH) {
     const layout = HOLE_LAYOUTS[tier];
     const a = layout.aspect;
     const s = Math.max(fieldW / a, fieldH); // image drawn at width a*s, height s
     const ox = (a * s - fieldW) / 2;
-    const oy = (s - fieldH) / 2;
+    // The portrait phone artwork is pinned to the TOP of the field (CSS
+    // background-position: top center) because the stacked Pause row and
+    // instruction card overlay the top of the field — center-cropping would
+    // lift the painted holes up behind them. Mirror that anchor here so the
+    // moles stand exactly on the painted holes.
+    const oy = tier === "mobile" ? 0 : (s - fieldH) / 2;
     return {
       x: ((pos.x / 100) * a * s - ox) / fieldW * 100,
       y: ((pos.y / 100) * s - oy) / fieldH * 100,
@@ -1556,9 +1561,13 @@
   function pickWaveHoles(tier, count, fw, fh, texts, opts) {
     const layout = HOLE_LAYOUTS[tier];
     const compact = !!(opts && opts.compact);
-    const relaxTop = !!(opts && opts.relaxTop);
-    const vw = window.innerWidth;
     const short = fh < 420;
+    // Relaxed mode lets option bubbles cross the instruction zone. On SHORT
+    // fields (landscape phones) the card eats so much height that "crossing"
+    // means hiding bubble text behind the opaque card — there the fan below
+    // the card is used instead, so the option wave stays fully readable.
+    const relaxTop = !!(opts && opts.relaxTop) && !short;
+    const vw = window.innerWidth;
     const fanYard = document.getElementById("yard");
     if (fanYard) fanYard.classList.remove("yard--fan"); // re-added by the fan below
     const fontPx = clampNum(15, 1.25 * vw / 100, 22);
@@ -1585,7 +1594,7 @@
     const estW = texts && texts.length
       ? texts.map((t) => Math.max(compact ? 64 : 92, Math.min(cap, String(t).length * fontPx * 0.52 + (compact ? 18 : 26))))
       : Array.from({ length: count }, () => cap);
-    const bubbleH = compact ? 46 : (short ? 58 : (tier === 'mobile' ? 88 : 78));
+    const bubbleH = compact ? 46 : (short ? 58 : (tier === 'mobile' ? 78 : 78));
     // Match the RENDERED CSS sizes (.mole width clamps) so collision checks
     // never underestimate; word chips render smaller via .mole--word.
     const moleW = compact
@@ -1606,14 +1615,17 @@
     // the engine's correct answer) on a tight field.
     const pad = relaxTop ? moleW * 0.22 : 0;
     const shrink = (b) => ({ l: b.l + pad, r: b.r - pad, t: b.t + pad, b: b.b - pad });
-    // measure the REAL instruction card so bubbles never cross into it
+    // measure the REAL instruction card so bubbles never cross into it.
+    // offsetTop/offsetHeight give the card's DOCKED layout position: the
+    // center-stage read beat flies the card with a transform, and a
+    // getBoundingClientRect taken mid-flight would read it low over the
+    // field and freeze the whole board out.
     let topLimit = short ? 58 : 92;
     const instr = document.querySelector('#instruction');
     const field = document.querySelector('#whack');
-    if (instr && field) {
-      const ir = instr.getBoundingClientRect();
-      const fr = field.getBoundingClientRect();
-      topLimit = Math.max(topLimit, Math.min(ir.bottom - fr.top + 10, fh * 0.5));
+    if (instr && field && instr.offsetParent === field) {
+      const dockedBottom = instr.offsetTop + instr.offsetHeight;
+      topLimit = Math.max(topLimit, Math.min(dockedBottom + 8, fh * 0.55));
     }
     const bottomLimit = short ? 74 : (tier === 'mobile' ? 124 : 100); // feedback zone
     const intersects = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
@@ -1726,8 +1738,15 @@
       return fan;
     }
     if (best) return commit(best);
-    // Last resort: the spread top row.
-    const fallback = layout.top.slice(0, count).map((h, i) => boxesOf(h, widths[i] || cap)).filter(Boolean);
+    // Last resort: bottom painted row first, then the top row — and ONLY
+    // holes whose bubbles clear the instruction card. The previous version
+    // blindly used the top row, which parked the answer bubbles BEHIND the
+    // opaque card on phones (animals visible, answers invisible). Fewer
+    // placed targets are handled by spawnWave()'s trim — never hidden text.
+    const fallback = layout.bottom.concat(layout.top)
+      .map((h, i) => boxesOf(h, widths[i % widths.length] || cap))
+      .filter((b) => b && (relaxTop || b.bubble.t >= topLimit))
+      .slice(0, count);
     if (!fallback.length) return commit(best || []);
     ctx.lastWaveSig = fallback.map((c) => c.hole.x + '/' + c.hole.y).sort().join('|');
     ctx.lastHoleKey = fallback[0].hole;
@@ -1748,6 +1767,8 @@
       boxes = pickWaveHoles(tier, usable.length, fw, fh, usable.map((w) => w.text));
       if (boxes.length < usable.length) usable = trimWaveTo(wave, boxes.length);
     }
+    if (!boxes.length) return; // degenerate field box: skip the wave, never crash
+    usable = usable.slice(0, boxes.length);
     usable.forEach((item, i) => {
       const box = boxes[i];
       const mole = makeMole(box.pos, {

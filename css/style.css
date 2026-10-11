@@ -63,6 +63,14 @@
   padding: 0;
 }
 
+/* The hidden attribute must ALWAYS win. Component classes that set their own
+   `display` (feedback card, binary paddles, streak chip…) would otherwise
+   override the browser's default [hidden] { display: none } and keep
+   "hidden" elements painted on screen — e.g. the verdict card showing up
+   before the player has answered. Every show/hide in ui.js drives this
+   attribute, so it has to stay authoritative. */
+[hidden] { display: none !important; }
+
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -2167,11 +2175,22 @@ body.reduce-motion .loading__bar-fill::after { animation: none; }
 }
 
 @media (max-width: 600px) {
-  .whack__bg { background-image: url("../assets/images/game-bg-mobile.jpg"); }
+  .whack__bg {
+    background-image: url("../assets/images/game-bg-mobile.jpg");
+    /* Phone fields stack Pause + the instruction card over the TOP of this
+       portrait artwork; anchoring the painting to the top keeps the painted
+       holes at their in-image depth instead of center-cropping them up under
+       the cards. ui.js mapHole() mirrors this anchor for the mobile tier. */
+    background-position: top center;
+  }
 }
 
-/* Tall fields (portrait tablets) also use the portrait artwork */
-.whack.whack--tall .whack__bg { background-image: url("../assets/images/game-bg-mobile.jpg"); }
+/* Tall fields (portrait tablets) also use the portrait artwork — same top
+   anchor so the hole map stays aligned with the painting */
+.whack.whack--tall .whack__bg {
+  background-image: url("../assets/images/game-bg-mobile.jpg");
+  background-position: top center;
+}
 
 /* WebP variants (~40% lighter) wherever the browser supports them */
 @supports (background-image: image-set("a.webp" type("image/webp"))) {
@@ -2718,7 +2737,11 @@ body.reduce-motion .mole__speak.is-speaking::after { animation: none; }
 
 .mole.is-wrong .mole__bubble { border-color: var(--red-500); background: #FFEDF0; }
 .mole.is-wrong .mole__bubble::after { border-top-color: var(--red-500); }
-.mole.is-wrong .mole__bubble { animation: bubble-shake 380ms ease 120ms; }
+/* opacity stays pinned: bubble-shake REPLACES the bubble-in animation, so
+   its `forwards` fill no longer holds — without this the shaken bubble
+   would fall back to its base opacity 0 and the learner's pick would
+   vanish right after the verdict. */
+.mole.is-wrong .mole__bubble { opacity: 1; animation: bubble-shake 380ms ease 120ms; }
 
 @keyframes bubble-shake {
   0%, 100% { transform: translateX(-50%) translateX(0); }
@@ -3567,27 +3590,57 @@ body.reduce-motion .hammer-cursor.is-whacking .hammer-cursor__img {
   }
 }
 
-/* Phone-sized refinements inside the stacked layout */
-@media (max-width: 600px) {
+/* Phone-sized refinements inside the stacked layout. sizing applies to
+   narrow phones (width <= 600) AND short/landscape phones (height <= 480):
+   both must keep the instruction card compact so sentence bubbles always
+   clear it. */
+@media (max-width: 600px), (max-height: 480px) {
   .pause-pill { padding: 0 12px; gap: 6px; font-size: 0.8rem; }
 
-  .instruction__hint { font-size: 0.76rem; }
+  /* Compact card: ~40-60px for plain instructions, ~90-110px when the
+     missing-word sentence row is present. Same cream-and-gold family —
+     just sized for small screens. The hint line is dropped: it only
+     restates the instruction text already shown between badge and ring. */
+  .instruction {
+    padding: 9px 42px;
+    gap: 2px 6px;
+    border-radius: 16px;
+  }
   .instruction__text {
-    font-size: 1.02rem;
+    font-size: 0.98rem;
+    line-height: 1.25;
     white-space: normal;
     overflow-wrap: anywhere;
   }
-  .instruction__sentence { font-size: 1.05rem; overflow-wrap: anywhere; }
+  .instruction__hint { display: none; }
+  .instruction__sentence { font-size: 0.92rem; line-height: 1.25; overflow-wrap: anywhere; }
+
   /* narrow phones: ornaments shrink to stars only so the text keeps its room */
   .instruction__orn-line { display: none; }
-  .instruction__orn { min-width: 10px; }
+  .instruction__orn { min-width: 8px; }
+  .instruction__orn-star { width: 9px; height: 9px; }
 
-  /* Tall ornate card like the photo — generous height on phones too */
-  .instruction { padding: 20px 46px 20px 48px; }
-  .instruction__badge { width: 36px; height: 36px; left: 7px; border-width: 2.5px; font-size: 1rem; }
-  .instruction__timer { width: 40px; height: 40px; right: 6px; }
-  .instruction__ring { width: 40px; height: 40px; }
-  .instruction__seconds { font-size: 0.88rem; }
+  .instruction__badge { width: 32px; height: 32px; left: 7px; border-width: 2.5px; font-size: 0.92rem; }
+  .instruction__timer { width: 36px; height: 36px; right: 6px; }
+  .instruction__ring { width: 36px; height: 36px; }
+  .instruction__seconds { font-size: 0.8rem; }
+  .instruction__speak { min-height: 30px; padding: 3px 10px; font-size: 0.72rem; margin-top: 2px; }
+}
+
+/* Extra-tight card for VERY short fields (landscape phones): the sentence
+   stays (the question needs it) but the Listen pill is dropped — every
+   bubble keeps its own tap-to-hear badge — and everything shrinks a notch
+   so a whole bubble+animal stack fits below the card. */
+@media (max-height: 480px) {
+  .instruction { padding: 5px 38px; }
+  .instruction__text { font-size: 0.82rem; }
+  .instruction__sentence { font-size: 0.85rem; line-height: 1.2; }
+  .instruction__speak { display: none; }
+  .instruction__badge { width: 28px; height: 28px; font-size: 0.82rem; }
+  .instruction__timer { width: 30px; height: 30px; }
+  .instruction__ring { width: 30px; height: 30px; }
+  .instruction__seconds { font-size: 0.72rem; }
+  .instruction__orn { display: none; }
 }
 
 /* Journey map fades: on phones the full-bleed artwork eases under the header
@@ -3669,13 +3722,10 @@ body.reduce-motion .hammer-cursor.is-whacking .hammer-cursor__img {
   .error-box__mascot { width: 70px; }
 
   .gamebar { min-height: 42px; }
-  /* Short fields: tighten the phone flow stack (see the ≤600px block); the
-     44px touch floor on Pause stays. */
-  .whack { gap: 6px; }
-  .pause-pill { margin: 6px 0 0 6px; padding: 0 10px; font-size: 0.76rem; }
-  .instruction { padding: 4px 10px; }
-  .instruction__text { font-size: 0.8rem;
-    min-height: 40px; }
+  /* Short fields: tighten the phone flow stack (see the compact-card block
+     above for the card itself — sizing is handled there, not here). */
+  .whack { gap: 4px; }
+  .pause-pill { margin: 4px 0 0 6px; padding: 0 10px; font-size: 0.76rem; min-height: 40px; }
   .mole { width: clamp(70px, 16.5vh, 124px); }
   .mole__bubble { font-size: 15px; }
   .paddle { min-height: 46px; }
