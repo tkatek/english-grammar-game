@@ -1928,7 +1928,7 @@
 
     card.classList.add(feedback.correct ? "is-correct" : "is-wrong");
     $("#feedback-icon-use").setAttribute("href", feedback.correct ? "#i-check-circle" : "#i-x-circle");
-    $("#feedback-title").textContent = feedback.correct ? "Correct!" : "Not quite";
+    $("#feedback-title").textContent = feedback.correct ? "Correct!" : "Incorrect!";
 
     const detail = $("#feedback-detail");
     if (!feedback.correct) {
@@ -1954,10 +1954,24 @@
     setSpeechButton("#feedback-speak", ctx.feedbackSpeakText);
     $("#feedback-continue").textContent = feedback.isFinalQuestion ? "Results" : "Next";
     card.hidden = false;
+    // The clock waits while the learner reads the verdict: silently pause the
+    // engine for as long as the card is up (no pause menu). The flag is set
+    // BEFORE pause() because the PAUSED handler runs synchronously inside it
+    // and uses it to skip the menu. hideFeedback()/Next resumes.
+    if (engine.status === "playing") {
+      ctx.feedbackPause = true;
+      if (!engine.pause().paused) ctx.feedbackPause = false;
+    }
   }
 
   function hideFeedback() {
     $("#feedback").hidden = true;
+    // Leaving the feedback state always thaws the clock — Next, a new
+    // question, or any other path that hides the card resumes play.
+    if (ctx.feedbackPause) {
+      ctx.feedbackPause = false;
+      engine.resume();
+    }
     Speech.stop(); // advancing ends the reading — never talk over the next beat
     clearSpeakingMarks();
   }
@@ -2443,6 +2457,9 @@
       // Silent reading pause (question intro beat): no menu, play continues
       // as soon as the card docks.
       if (ctx.questionIntro && ctx.questionIntro.pausedByIntro) return;
+      // Silent feedback pause (verdict card up): no menu, the clock waits
+      // until the learner taps Next.
+      if (ctx.feedbackPause) return;
       if (ctx.screen === "game" && ctx.modalStack[ctx.modalStack.length - 1] !== "pause") {
         openModal("pause");
       }
@@ -2450,6 +2467,9 @@
 
     engine.on(E.RESUMED, () => {
       HammerCursor.sync(); // HUD already reflects ticks; re-arm the hammer
+      // The clock must stay frozen while the verdict card waits for Next —
+      // closing the pause menu must not restart it under the card.
+      if (ctx.feedbackPause && !$("#feedback").hidden) engine.pause();
     });
 
     engine.on(E.CHALLENGE_UNLOCKED, (payload) => {
@@ -2582,6 +2602,12 @@
     });
 
     $("#hud-pause").addEventListener("click", () => {
+      // Verdict card up: the engine is already (silently) paused under it —
+      // just open the pause menu; resume re-freezes until Next.
+      if (ctx.feedbackPause) {
+        if (ctx.screen === "game" && ctx.modalStack[ctx.modalStack.length - 1] !== "pause") openModal("pause");
+        return;
+      }
       // During the reading beat the engine is already (silently) paused:
       // end the beat so the board is out, then open the pause menu normally.
       if (ctx.questionIntro) {
