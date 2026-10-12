@@ -1709,21 +1709,25 @@
     }
 
     // The phone painting always fields a PAIR (the max-two rule), so half the
-  // field is free per animal: scale the pair up to big, thumb-friendly targets
-  // instead of leaving the board looking sparse. Phone-only, so desktop and
-  // tablet layouts are untouched.
+  // field is free per animal: give the pair bigger bodies and much bigger tap
+  // targets instead of leaving the board looking sparse. Phones only, so
+  // desktop and tablet layouts are untouched.
+  // Bubble typography deliberately keeps its proven mobile metrics: the
+  // tap-to-hear badge hangs over a bubble's top-right corner, and scaling the
+  // font pushes a short chip's last letters underneath it. The bubble already
+  // grows with the wider mascot below it.
   const roomy = tier === "mobile" && (opts.count || 0) <= 2;
-  const roomyK = roomy ? 1.16 : 1;
+  const bodyK = roomy ? 1.18 : 1;
   const baseMoleW = (compact
       ? (tier === "desktop" ? clampNum(118, 8.5 * vw / 100, 165)
         : tier === "tablet" ? clampNum(96, 12.5 * vw / 100, 138)
           : clampNum(80, 21 * vw / 100, 108))
       : (tier === "desktop" ? clampNum(168, 11.5 * vw / 100, 220)
         : tier === "tablet" ? clampNum(126, 13.5 * vw / 100, 175)
-          : clampNum(94, 27 * vw / 100, 124))) * roomyK;
-    const fontPx = (compact
+          : clampNum(94, 27 * vw / 100, 124))) * bodyK;
+    const fontPx = compact
       ? clampNum(13, 3.4 * vw / 100, 17)
-      : clampNum(13.5, 1.3 * vw / 100, 21)) * roomyK;
+      : clampNum(13.5, 1.3 * vw / 100, 21);
 
     // Widest bubble neighbouring painted holes can host side by side —
     // measured WITHIN each row. Capping by the tighter row would wrap every
