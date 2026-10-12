@@ -65,7 +65,6 @@
     },
     wrong: {
       surprised: Assets.url(PD + "prairie-dog-wrong-surprised.png"),
-      anxious: Assets.url(PD + "prairie-dog-wrong-anxious.png"),
       crying: Assets.url(PD + "prairie-dog-wrong-crying.png"),
       dizzy: Assets.url(PD + "prairie-dog-wrong-dizzy.png"),
       smashed: Assets.url(PD + "prairie-dog-wrong-smashed.png"),
@@ -172,11 +171,9 @@
   const SETTINGS_KEY = "grammar-quest:ui-settings:v1";
 
   const REWARDS = "assets/images/rewards/";
-  const MASCOTS = "assets/images/mascots/";
-  // WebP-aware helpers for on-demand art (rewards/mascots render on results
+  // WebP-aware helper for on-demand art (reward images render on results
   // and completion screens — loaded lazily, always in the lightest format).
   const rewardArt = (name) => Assets.url(REWARDS + name + ".png");
-  const mascotArt = (name) => Assets.url(MASCOTS + name + ".png");
 
   /* ------------------------------ helpers ------------------------------ */
 

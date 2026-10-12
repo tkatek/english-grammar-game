@@ -11,23 +11,18 @@
   <!-- Asset versioning: bump ?v= whenever css/js changes so every browser
        (GitHub Pages caches HTML for ~10 min) drops its old copy and pulls
        the fixed build immediately. -->
-  <link rel="stylesheet" href="css/style.css?v=2026-10-11-5">
-  <script src="js/audio.js?v=2026-10-11-5" defer></script>
-  <script src="js/speech.js?v=2026-10-11-5" defer></script>
-  <script src="js/loader.js?v=2026-10-11-5" defer></script>
-  <script src="js/game.js?v=2026-10-11-5" defer></script>
-  <script src="js/ui.js?v=2026-10-11-5" defer></script>
+  <link rel="stylesheet" href="css/style.css?v=2026-10-12-1">
+  <script src="js/audio.js?v=2026-10-12-1" defer></script>
+  <script src="js/speech.js?v=2026-10-12-1" defer></script>
+  <script src="js/loader.js?v=2026-10-12-1" defer></script>
+  <script src="js/game.js?v=2026-10-12-1" defer></script>
+  <script src="js/ui.js?v=2026-10-12-1" defer></script>
 </head>
 <body>
   <!-- ============ SVG ICON SPRITE (Lucide-style, 24px grid) ============
        Stroke icons inherit `currentColor`; filled icons use fill="currentColor".
        Render with: <svg class="icon"><use href="#i-name"/></svg> -->
   <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
-    <symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-      <path d="M12 17h.01"/>
-    </symbol>
     <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/>
       <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -51,11 +46,6 @@
       <circle cx="12" cy="12" r="10"/>
       <path d="M12 6v6l4 2"/>
     </symbol>
-    <symbol id="i-map" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/>
-      <path d="M15 5.764v15"/>
-      <path d="M9 3.236v15"/>
-    </symbol>
     <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <rect width="18" height="11" x="3" y="11" rx="2"/>
       <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -70,10 +60,6 @@
     <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M18 6 6 18"/>
       <path d="m6 6 12 12"/>
-    </symbol>
-    <symbol id="i-check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <path d="m9 12 2 2 4-4"/>
     </symbol>
     <symbol id="i-x-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="10"/>
@@ -112,9 +98,6 @@
     <symbol id="i-pause" viewBox="0 0 24 24" fill="currentColor" stroke="none">
       <rect x="6" y="4" width="4" height="16" rx="1.4"/>
       <rect x="14" y="4" width="4" height="16" rx="1.4"/>
-    </symbol>
-    <symbol id="i-sparkle" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-      <path d="M12 2.5l2.2 5.63a2 2 0 0 0 1.17 1.17L21 11.5l-5.63 2.2a2 2 0 0 0-1.17 1.17L12 20.5l-2.2-5.63a2 2 0 0 0-1.17-1.17L3 11.5l5.63-2.2a2 2 0 0 0 1.17-1.17z"/>
     </symbol>
     <symbol id="i-volume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/>

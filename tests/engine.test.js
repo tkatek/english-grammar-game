@@ -949,6 +949,47 @@ function fakeLocalStorage() {
     check("review is a clone (mutating it is safe)", (() => { review[0].correct = false; return engine.getAttemptReview()[0].correct === true; })());
   });
 
+  await test("full journey: every level and challenge of the shipped data completes in order", async () => {
+    // End-to-end regression over the real questions.json: the Home→map→level
+    // flow the UI drives, played through the engine from a fresh profile to
+    // full game completion. Catches unlock-chain or content regressions that
+    // per-challenge tests can miss (e.g. a level whose final challenge cannot
+    // be passed, or gameCompleted never firing).
+    const engine = await newEngine();
+    const adapter = engine._storageAdapter; // memory adapter from newEngine()
+    let gameCompleted = false;
+    engine.on(EVENTS.GAME_COMPLETED, () => { gameCompleted = true; });
+
+    const levels = engine.getLevels();
+    check("shipped data declares 5 levels", levels.length === 5, levels.length);
+    let totalChallenges = 0;
+    for (const level of levels) {
+      totalChallenges += level.challenges.length;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const next = engine.getNextUnlockedActivity();
+        if (!next || next.levelId !== level.id) break;
+        const result = await playThrough(engine, next.levelId, next.challengeId, { answerCorrectly: true });
+        if (!result.passed) { check("challenge " + next.challengeId + " of level " + next.levelId + " is passable", false, result.accuracy); return; }
+      }
+      const progress = engine.getLevelProgress(level.id);
+      check("level " + level.id + " fully completed in order",
+        progress.completed && progress.unlocked, progress);
+    }
+    const overall = engine.getOverallProgress();
+    check("all challenges completed", overall.completedChallenges === totalChallenges && overall.totalChallenges === totalChallenges, overall);
+    check("gameCompleted fired exactly on the last pass", gameCompleted === true);
+    check("stars were earned along the way", overall.totalStars > 0 && overall.totalStars <= overall.maxTotalStars, overall);
+    check("no next activity remains", engine.getNextUnlockedActivity() === null);
+
+    // Progress survives an engine rebuild (refresh simulation) with everything
+    // still unlocked and no content replayed compulsorily.
+    const reborn = new GrammarQuestEngine({ storageAdapter: adapter });
+    await reborn.init({ data: jsonData });
+    const rebornOverall = reborn.getOverallProgress();
+    check("full completion survives a reload", rebornOverall.gameCompleted === true, rebornOverall);
+    check("reloaded engine has no pending activity", reborn.getNextUnlockedActivity() === null);
+  });
+
   await test("realtime adapter boundary forwards events without networking", async () => {
     const engine = await newEngine();
     const forwarded = [];
